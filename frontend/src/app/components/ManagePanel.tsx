@@ -26,6 +26,7 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
   const [isNarrow, setIsNarrow] = useState(false);
   const [page, setPage] = useState(1);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const [actionIdx, setActionIdx] = useState<number | null>(null);
   const pageSize = 10;
   useEffect(() => {
     const handleResize = () => setIsNarrow(window.innerWidth < 768);
@@ -81,7 +82,7 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
   ];
 
   if (isNarrow) {
-    // 小屏幕卡片化展示 + 分页 + 悬浮操作区
+    // 小屏幕卡片化展示 + 分页 + 浮层操作区
     const pagedData = data.slice((page - 1) * pageSize, page * pageSize);
     return (
       <div className="w-full flex flex-col gap-4">
@@ -95,9 +96,9 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
           return (
             <div
               key={idx}
-              className="relative bg-gradient-to-br from-blue-50 to-white rounded-2xl shadow-lg p-4 flex flex-row gap-2 border border-blue-100 hover:shadow-2xl transition-shadow duration-200 items-stretch"
+              className="relative bg-gradient-to-br from-blue-50 to-white rounded-2xl shadow-lg p-4 flex flex-col gap-2 border border-blue-100 hover:shadow-2xl transition-shadow duration-200 items-stretch"
               style={{ minWidth: 0 }}
-              onClick={() => setActiveIdx(globalIdx)}
+              onDoubleClick={() => setActionIdx(globalIdx)}
               onMouseEnter={() => setActiveIdx(globalIdx)}
               onMouseLeave={() => setActiveIdx(null)}
             >
@@ -179,8 +180,23 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
                   </div>
                 </div>
               </div>
-              {/* 悬浮操作区，仅在激活时显示 */}
-              {activeIdx === globalIdx && (
+              {/* 小屏双击浮层操作区 */}
+              {actionIdx === globalIdx && (
+                <div
+                  className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl backdrop-blur-md bg-white/60"
+                  onClick={() => setActionIdx(null)}
+                  style={{ transition: 'backdrop-filter 0.2s' }}
+                >
+                  <div className="flex flex-row gap-4">
+                    <Button icon={<EditOutlined />} size="large" type="primary" onClick={e => { e.stopPropagation(); setActionIdx(null); onEdit(globalIdx); }}>编辑</Button>
+                    <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => { setActionIdx(null); onDelete(globalIdx); }} okText="确定" cancelText="取消">
+                      <Button icon={<DeleteOutlined />} size="large" danger onClick={e => e.stopPropagation()}>删除</Button>
+                    </Popconfirm>
+                  </div>
+                </div>
+              )}
+              {/* 桌面端悬浮操作区 */}
+              {!isNarrow && activeIdx === globalIdx && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/95 rounded-xl shadow-lg px-3 py-2 flex flex-col gap-2 border border-blue-100 animate-fade-in">
                   <Button icon={<EditOutlined />} size="small" onClick={e => { e.stopPropagation(); onEdit(globalIdx); }} style={{width:64}}>编辑</Button>
                   <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => onDelete(globalIdx)} okText="确定" cancelText="取消">
