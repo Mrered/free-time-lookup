@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media (max-width: 400px) {
+  .mini-tag {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 14px !important;
+    border-width: 0 !important;
+    min-width: 0 !important;
+    height: 22px !important;
+    line-height: 20px !important;
+  }
+  /* .mini-tag .ant-tag {
+    border-width: 0 !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    font-size: 12px !important;
+    min-width: 0 !important;
+    height: 22px !important;
+    line-height: 20px !important;
+  } */
+}
