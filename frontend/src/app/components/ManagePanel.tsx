@@ -23,6 +23,7 @@ interface ManagePanelProps {
 }
 
 export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, onRestoreBackup }: ManagePanelProps) {
+  console.log("ManagePanel data:", data); // 调试日志
   const [isNarrow, setIsNarrow] = useState(false);
   const [page, setPage] = useState(1);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);

@@ -54,6 +54,7 @@ export default function Home() {
     try {
       const res = await fetch(`${apiUrl}/api/upload-excel`, { method: "GET" });
       const result = await res.json();
+      console.log("fetchData result:", result);
       if (Array.isArray(result.value)) {
         setData(result.value);
       } else if (typeof result.value === "string") {
