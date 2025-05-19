@@ -1,5 +1,6 @@
 import { Table, Button, Popconfirm, Pagination, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { FormInstance } from "antd/es/form";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useEffect, useState } from "react";
 
@@ -20,9 +21,14 @@ interface ManagePanelProps {
   onEdit: (idx: number) => void;
   onDelete: (idx: number) => void;
   onRestoreBackup: () => void;
+  editModalOpen: boolean;
+  editRow: DataRow | null;
+  onEditModalClose: () => void;
+  onEditSave: () => void;
+  form: FormInstance;
 }
 
-export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, onRestoreBackup }: ManagePanelProps) {
+export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, onRestoreBackup, editModalOpen, editRow, onEditModalClose, onEditSave, form }: ManagePanelProps) {
   console.log("ManagePanel data:", data); // 调试日志
   const [isNarrow, setIsNarrow] = useState(false);
   const [page, setPage] = useState(1);
