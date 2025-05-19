@@ -1,8 +1,8 @@
 import { Table, Button, Popconfirm, Pagination, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { FormInstance } from "antd/es/form";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import { useEffect, useState } from "react";
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useEffect, useState, ReactNode } from "react";
 
 interface DataRow {
   name: string;
@@ -26,21 +26,87 @@ interface ManagePanelProps {
   onEditModalClose: () => void;
   onEditSave: () => void;
   form: FormInstance;
+  historyButtons?: ReactNode;
 }
 
-export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, onRestoreBackup, editModalOpen, editRow, onEditModalClose, onEditSave, form }: ManagePanelProps) {
+export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, onRestoreBackup, editModalOpen, editRow, onEditModalClose, onEditSave, form, historyButtons }: ManagePanelProps) {
   console.log("ManagePanel data:", data); // 调试日志
   const [isNarrow, setIsNarrow] = useState(false);
   const [page, setPage] = useState(1);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [actionIdx, setActionIdx] = useState<number | null>(null);
+  const [backupInfo, setBackupInfo] = useState<{hasBackup: boolean, formattedTime: string | null}>({
+    hasBackup: false, 
+    formattedTime: null
+  });
+  const [checkingBackup, setCheckingBackup] = useState(false);
   const pageSize = 10;
+  
   useEffect(() => {
     const handleResize = () => setIsNarrow(window.innerWidth < 768);
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // 检查备份状态
+  useEffect(() => {
+    const checkBackupStatus = async () => {
+      try {
+        setCheckingBackup(true);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+        const response = await fetch(`${apiUrl}/api/restore-backup`, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setBackupInfo({
+            hasBackup: data.hasBackup,
+            formattedTime: data.formattedTime
+          });
+        }
+      } catch (err) {
+        console.error("检查备份状态失败:", err);
+      } finally {
+        setCheckingBackup(false);
+      }
+    };
+    
+    checkBackupStatus();
+  }, [data]); // 当数据变化时重新检查备份状态
+
+  // 更新小屏幕视图中的备份按钮
+  const restoreBackupButtonSmall = (
+    <Button 
+      onClick={onRestoreBackup} 
+      icon={<ReloadOutlined />}
+      loading={loading}
+      disabled={!backupInfo.hasBackup}
+      title={backupInfo.hasBackup ? `恢复${backupInfo.formattedTime || '上次'}的备份` : '暂无可用备份'}
+    >
+      恢复备份
+      {backupInfo.hasBackup && <span className="text-xs text-green-500 ml-1">✓</span>}
+    </Button>
+  );
+  
+  // 更新桌面版视图中的备份按钮
+  const restoreBackupButtonLarge = (
+    <div className="flex flex-col">
+      <Button 
+        onClick={onRestoreBackup} 
+        icon={<ReloadOutlined />}
+        loading={loading}
+        disabled={!backupInfo.hasBackup}
+        title={backupInfo.hasBackup ? `恢复${backupInfo.formattedTime || '上次'}的备份` : '暂无可用备份'}
+      >
+        {backupInfo.hasBackup ? `恢复备份 (${backupInfo.formattedTime?.split(' ')[1] || '有备份'})` : '暂无备份'}
+        {backupInfo.hasBackup && <span className="text-xs text-green-500 ml-1">✓</span>}
+      </Button>
+      <div className="text-xs text-gray-500 mt-1">数据修改将在浏览器关闭时自动保存</div>
+    </div>
+  );
 
   const columns: ColumnsType<DataRow> = [
     { title: "姓名", dataIndex: "name", key: "name", align: "center" },
@@ -93,10 +159,14 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
     const pagedData = data.slice((page - 1) * pageSize, page * pageSize);
     return (
       <div className="w-full flex flex-col gap-4">
-        <div className="flex flex-row gap-2 mb-4">
-          <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
-          <Button onClick={onRestoreBackup} icon={<EditOutlined />}>恢复上次备份</Button>
+        <div className="flex flex-row gap-2 mb-4 items-center justify-between">
+          <div className="flex flex-row gap-2">
+            <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
+            {restoreBackupButtonSmall}
+          </div>
+          {historyButtons && <div>{historyButtons}</div>}
         </div>
+        <div className="text-xs text-gray-500 mb-2">数据修改将在浏览器关闭时自动保存</div>
         {loading ? <div className="text-center text-gray-400 py-8">加载中...</div> : null}
         {pagedData.map((row, idx) => {
           const globalIdx = (page - 1) * pageSize + idx;
@@ -231,14 +301,17 @@ export default function ManagePanel({ data, loading, onAdd, onEdit, onDelete, on
 
   return (
     <div className="w-full">
-      <div className="flex flex-row gap-2 mb-6">
-        <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
-        <Button onClick={onRestoreBackup} icon={<EditOutlined />}>恢复上次备份</Button>
+      <div className="flex flex-row gap-2 mb-6 items-center justify-between">
+        <div className="flex flex-row gap-2">
+          <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
+          {restoreBackupButtonLarge}
+        </div>
+        {historyButtons && <div>{historyButtons}</div>}
       </div>
       <Table
         columns={columns}
         dataSource={data}
-        rowKey={(_, idx) => String(idx)}
+        rowKey={record => record.name + '-' + record.class + '-' + (record.isTheory ? 'T'+record.weekday : 'F'+String(record.weekType))}
         loading={loading}
         pagination={{ pageSize: 10, locale: { items_per_page: '条/页' } }}
         bordered

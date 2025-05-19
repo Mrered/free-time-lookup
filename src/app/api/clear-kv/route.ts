@@ -6,7 +6,8 @@ export async function POST(req: NextRequest) {
     const redis = await getRedis();
     await redis.flushDb();
     return NextResponse.json({ message: "数据库已清空" });
-  } catch (err: any) {
-    return NextResponse.json({ message: "清空失败: " + err.message }, { status: 500 });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ message: "清空失败: " + error.message }, { status: 500 });
   }
 } 

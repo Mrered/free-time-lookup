@@ -14,9 +14,10 @@ export async function POST(req: NextRequest) {
     await redis.set(key, JSON.stringify(value));
     console.log("[POST] 数据写入成功", { key, value });
     return NextResponse.json({ message: "写入成功" });
-  } catch (err: any) {
-    console.error("[POST] 写入失败", err);
-    return NextResponse.json({ message: "写入失败: " + err.message }, { status: 500 });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("[POST] 写入失败", error);
+    return NextResponse.json({ message: "写入失败: " + error.message }, { status: 500 });
   }
 }
 
@@ -28,8 +29,9 @@ export async function GET() {
     const value = await redis.get("excel_data");
     console.log("[GET] 读取到的原始数据:", value);
     return NextResponse.json({ value: value ? JSON.parse(value) : [] });
-  } catch (err: any) {
-    console.error("[GET] 读取失败", err);
-    return NextResponse.json({ message: "读取失败: " + err.message }, { status: 500 });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("[GET] 读取失败", error);
+    return NextResponse.json({ message: "读取失败: " + error.message }, { status: 500 });
   }
 } 
