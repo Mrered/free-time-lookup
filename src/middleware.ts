@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // 不需要验证的路径列表
-const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/register', '/api/auth/register'];
 
 export function middleware(request: NextRequest) {
   const { pathname, hostname, searchParams } = request.nextUrl;

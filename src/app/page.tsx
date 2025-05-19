@@ -1210,14 +1210,13 @@ export default function Home() {
         </>
       )}
       <Layout>
-        <Content style={{ margin: 32, background: "#f8fafc", borderRadius: 16, boxShadow: "0 2px 16px #e6e6e6", minHeight: 600, padding: 32 }}>
-          {/* 添加顶部用户菜单(仅在移动端显示) */}
-          {isNarrow && (
-            <div className="flex justify-end mb-4">
-              <UserMenu />
-            </div>
-          )}
-          
+        {/* 添加顶部用户信息栏 */}
+        <div className="bg-white shadow-sm p-3 flex justify-end">
+          <UserMenu />
+        </div>
+        
+        <Content style={{ margin: "0 32px 32px", background: "#f8fafc", borderRadius: 16, boxShadow: "0 2px 16px #e6e6e6", minHeight: 600, padding: 32 }}>
+          {/* 移除重复的用户菜单 */}
           {isNarrow ? (
             <>
               {/* 移除多余的顶部操作栏，在各面板内集成操作按钮 */}

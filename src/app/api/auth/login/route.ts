@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-// 简单的用户验证，实际项目中应使用更安全的方式存储和验证
-const VALID_CREDENTIALS = {
-  username: "admin",
-  password: "admin123",
-};
+// 用户数据存储密钥
+const USER_KEY = "auth_user";
 
 // 令牌过期时间（24小时）
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
@@ -15,10 +12,43 @@ export async function POST(req: NextRequest) {
     // 获取请求体中的用户名和密码
     const { username, password } = await req.json();
 
+    // 从数据库获取用户信息
+    const res = await fetch(new URL(`/api/upload-excel?key=${USER_KEY}`, req.nextUrl.origin), { 
+      method: "GET",
+      headers: {
+        "Cache-Control": "no-cache"
+      }
+    });
+    
+    const result = await res.json();
+    
+    let userData;
+    
+    // 如果没有找到用户数据，初始化默认用户
+    if (!result.value) {
+      userData = {
+        username: "admin",
+        password: "admin123",
+        displayName: "管理员",
+        avatar: null
+      };
+      
+      await fetch(new URL('/api/upload-excel', req.nextUrl.origin), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: USER_KEY, value: userData }),
+      });
+    } else {
+      // 解析用户数据
+      userData = typeof result.value === "string" 
+        ? JSON.parse(result.value)
+        : result.value;
+    }
+
     // 验证用户名和密码
     if (
-      username === VALID_CREDENTIALS.username &&
-      password === VALID_CREDENTIALS.password
+      username === userData.username &&
+      password === userData.password
     ) {
       // 创建简单的认证令牌（实际应用中应使用更安全的JWT或其他方式）
       const token = btoa(`${username}:${Date.now()}`);
@@ -26,7 +56,12 @@ export async function POST(req: NextRequest) {
       // 设置令牌到Cookie中，过期时间为24小时
       const response = NextResponse.json({ 
         success: true, 
-        message: "登录成功" 
+        message: "登录成功",
+        user: {
+          username: userData.username,
+          displayName: userData.displayName || userData.username,
+          avatar: userData.avatar
+        }
       });
       
       // 在响应中设置cookie

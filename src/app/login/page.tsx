@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Form, Input, Button, Card, message, Spin } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 interface LoginFormValues {
   username: string;
@@ -12,12 +13,17 @@ interface LoginFormValues {
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isLocal, setIsLocal] = useState(false);
+  const [isRegistrationEnabled, setIsRegistrationEnabled] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromPath = searchParams.get("from") || "/";
   const isTestMode = searchParams.get("test_auth") === "1";
 
   useEffect(() => {
+    // 检查是否允许注册
+    const allowRegistration = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION === "true";
+    setIsRegistrationEnabled(allowRegistration);
+    
     // 检查是否从本地访问
     const hostname = window.location.hostname;
     if ((hostname === "localhost" || hostname === "127.0.0.1") && !isTestMode) {
@@ -113,6 +119,17 @@ export default function LoginPage() {
               登录
             </Button>
           </Form.Item>
+          
+          {isRegistrationEnabled && (
+            <div className="text-center">
+              <Link 
+                href={isTestMode ? "/register?test_auth=1" : "/register"} 
+                className="text-blue-500 hover:underline"
+              >
+                没有账号？立即注册
+              </Link>
+            </div>
+          )}
         </Form>
       </Card>
     </div>
