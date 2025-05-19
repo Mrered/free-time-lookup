@@ -285,7 +285,7 @@ export default function Home() {
                   onRestoreBackup={handleRestoreBackup}
                 />
               )}
-            </div>
+    </div>
           )}
         </Content>
       </Layout>
