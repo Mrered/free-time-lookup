@@ -21,16 +21,11 @@ function getAuthToken() {
 // 带有useSearchParams的内部组件
 function UserMenuContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLocalhost, setIsLocalhost] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isTestMode = searchParams.get("test_auth") === "1";
 
   useEffect(() => {
-    // 检查是否本地主机访问
-    const hostname = window.location.hostname;
-    setIsLocalhost(hostname === "localhost" || hostname === "127.0.0.1");
-    
     // 检查登录状态
     const hasToken = !!getAuthToken();
     setIsLoggedIn(hasToken);
@@ -60,15 +55,6 @@ function UserMenuContent() {
       message.error("退出登录时发生错误");
     }
   };
-
-  // 如果是本地访问且不是测试模式，显示本地访问提示
-  if (isLocalhost && !isTestMode) {
-    return (
-      <div className="flex items-center">
-        <span className="mr-2 text-sm text-gray-500">本地访问模式</span>
-      </div>
-    );
-  }
 
   // 如果是测试模式但未登录，显示测试模式提示
   if (isTestMode && !isLoggedIn) {
