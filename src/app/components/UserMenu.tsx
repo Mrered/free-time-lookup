@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Button, Dropdown, message, Avatar, Spin } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -25,7 +25,8 @@ interface UserData {
   avatar: string | null;
 }
 
-export default function UserMenu() {
+// 带有useSearchParams的内部组件
+function UserMenuContent() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLocalhost, setIsLocalhost] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -181,5 +182,14 @@ export default function UserMenu() {
         onSuccess={handleProfileUpdateSuccess}
       />
     </>
+  );
+}
+
+// 导出带有Suspense的组件
+export default function UserMenu() {
+  return (
+    <Suspense fallback={<Spin size="small" />}>
+      <UserMenuContent />
+    </Suspense>
   );
 } 

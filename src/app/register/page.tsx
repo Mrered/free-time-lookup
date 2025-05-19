@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Form, Input, Button, Card, message, Spin, Alert } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -12,7 +12,8 @@ interface RegisterFormValues {
   displayName?: string;
 }
 
-export default function RegisterPage() {
+// 使用SearchParams的组件，单独抽离
+function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [isLocal, setIsLocal] = useState(false);
   const [isRegistrationEnabled, setIsRegistrationEnabled] = useState<boolean | null>(null);
@@ -191,5 +192,14 @@ export default function RegisterPage() {
         </Form>
       </Card>
     </div>
+  );
+}
+
+// 主页面组件，使用Suspense包裹
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Spin size="large" /></div>}>
+      <RegisterForm />
+    </Suspense>
   );
 } 

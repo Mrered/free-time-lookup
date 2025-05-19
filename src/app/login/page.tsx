@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Form, Input, Button, Card, message, Spin } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,8 @@ interface LoginFormValues {
   password: string;
 }
 
-export default function LoginPage() {
+// 使用SearchParams的组件，单独抽离
+function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [isLocal, setIsLocal] = useState(false);
   const [isRegistrationEnabled, setIsRegistrationEnabled] = useState(false);
@@ -133,5 +134,14 @@ export default function LoginPage() {
         </Form>
       </Card>
     </div>
+  );
+}
+
+// 主页面组件，使用Suspense包裹
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Spin size="large" /></div>}>
+      <LoginForm />
+    </Suspense>
   );
 } 
