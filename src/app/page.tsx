@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { Layout, Menu, message as antdMessage, Modal, Form, Input, Switch, Select, Button as AntdButton } from "antd";
 import UploadPanel from "./components/UploadPanel";
 import ManagePanel from "./components/ManagePanel";
+import UserMenu from "./components/UserMenu";
 import { MenuOutlined, UndoOutlined, RedoOutlined, DownloadOutlined } from "@ant-design/icons";
 import { Drawer } from "antd";
 
@@ -1168,6 +1169,9 @@ export default function Home() {
             items={menuItems}
             style={{ height: "100%", borderRight: 0, fontSize: 16 }}
           />
+          <div className="p-4">
+            <UserMenu />
+          </div>
         </Sider>
       )}
       {isNarrow && (
@@ -1199,11 +1203,21 @@ export default function Home() {
               items={menuItems}
               style={{ height: "100%", borderRight: 0, fontSize: 16 }}
             />
+            <div className="p-4">
+              <UserMenu />
+            </div>
           </Drawer>
         </>
       )}
       <Layout>
         <Content style={{ margin: 32, background: "#f8fafc", borderRadius: 16, boxShadow: "0 2px 16px #e6e6e6", minHeight: 600, padding: 32 }}>
+          {/* 添加顶部用户菜单(仅在移动端显示) */}
+          {isNarrow && (
+            <div className="flex justify-end mb-4">
+              <UserMenu />
+            </div>
+          )}
+          
           {isNarrow ? (
             <>
               {/* 移除多余的顶部操作栏，在各面板内集成操作按钮 */}
