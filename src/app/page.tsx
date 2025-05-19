@@ -103,7 +103,7 @@ export default function Home() {
       const idxWeekType = 12;
       const periodIdxs = [4,5,6,7,8,9,10,11];
       const timeBlockIdxs = [13,14,15,16];
-      const json = rows.filter(row => row.length > 0 && row[idxName]).map((row: any[]) => {
+      const json = rows.filter(row => row.length > 0 && row[idxName]).map((row: any[], rowIdx: number) => {
         const isTheory = !!row[idxTheory];
         const periods = isTheory ? periodIdxs.map((i, idx) => row[i] ? idx+1 : null).filter(v => v !== null) : [];
         let weekType = null;
@@ -112,6 +112,9 @@ export default function Home() {
           else if (row[idxWeekType] === 0 || row[idxWeekType] === "0") weekType = false;
         }
         const timeBlocks = timeBlockIdxs.map((i, idx) => row[i] ? TIME_BLOCKS[idx] : null).filter(Boolean);
+        // 日志输出
+        console.log(`[Excel解析] 第${rowIdx+3}行: 原始=`, row);
+        console.log(`[Excel解析] isTheory=`, isTheory, 'periods=', periods, 'weekType=', weekType, 'timeBlocks=', timeBlocks);
         return {
           name: row[idxName],
           class: row[idxClass],
@@ -122,6 +125,8 @@ export default function Home() {
           timeBlocks
         };
       });
+      // 新增整体json调试日志
+      console.log('[Excel解析] 最终拼接出的json数组:', JSON.stringify(json, null, 2));
       const res = await fetch(`${apiUrl}/api/upload-excel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -194,37 +199,54 @@ export default function Home() {
   // 编辑弹窗表单
   const [weekPeriod, setWeekPeriod] = useState<number[][]>([]); // [[weekday, period], ...]
   const [weekTypeTimeBlock, setWeekTypeTimeBlock] = useState<[boolean, string][]>([]); // [[weekType, timeBlock], ...]
+  const [editWeekPeriod, setEditWeekPeriod] = useState<number[][]>([]); // 编辑时使用的星期节次
+  const [editWeekTypeTimeBlock, setEditWeekTypeTimeBlock] = useState<[boolean, string][]>([]); // 编辑时使用的单双周时间段
 
   useEffect(() => {
     if (editModalOpen && editRow) {
       console.log('[EditModal] 打开，editRow:', editRow);
+      
+      // 重置编辑数据
+      setEditWeekPeriod([]);
+      setEditWeekTypeTimeBlock([]);
+      
       const setFields = {
-        ...editRow,
-        weekday: editRow.isTheory
-          ? (typeof editRow.weekday === 'number' && editRow.weekday > 0 ? editRow.weekday : '')
-          : undefined,
-        periods: editRow.isTheory
-          ? (Array.isArray(editRow.periods) && editRow.periods.length > 0 ? editRow.periods.map(Number) : [])
-          : undefined,
-        weekType: !editRow.isTheory ? editRow.weekType : undefined,
-        timeBlocks: !editRow.isTheory ? editRow.timeBlocks : undefined,
+        name: editRow.name,
+        class: editRow.class,
+        isTheory: editRow.isTheory,
+        // 理论课需要设置节次
+        ...(editRow.isTheory ? {
+          weekday: editRow.weekday,
+          periods: editRow.periods
+        } : {
+          // 实训课需要设置时间段和周类型
+          weekType: editRow.weekType,
+          timeBlocks: editRow.timeBlocks
+        })
       };
+      
       console.log('[EditModal] setFieldsValue:', setFields);
       editForm.setFieldsValue(setFields);
     }
-  }, [editModalOpen, editRow]);
+  }, [editModalOpen, editRow, editForm]);
 
   // 理论/实训切换时清空互斥数据
   const handleTheorySwitch = (checked: boolean) => {
     form.setFieldValue('isTheory', checked);
     if (checked) {
       setWeekTypeTimeBlock([]);
-      form.setFieldValue('weekType', null);
-      form.setFieldValue('timeBlocks', []);
     } else {
       setWeekPeriod([]);
-      form.setFieldValue('weekday', 0);
-      form.setFieldValue('periods', []);
+    }
+  };
+  
+  // 编辑时的理论/实训切换
+  const handleEditTheorySwitch = (checked: boolean) => {
+    editForm.setFieldValue('isTheory', checked);
+    if (checked) {
+      setEditWeekTypeTimeBlock([]);
+    } else {
+      setEditWeekPeriod([]);
     }
   };
 
@@ -329,50 +351,145 @@ export default function Home() {
     try {
       const values = await editForm.validateFields();
       if (editIdx === null) return;
-      let newRow: DataRow = { ...data[editIdx], ...values };
-      if (values.isTheory) {
-        newRow.weekType = null;
-        newRow.timeBlocks = [];
+      
+      // 保持不变的数据
+      const baseData = {
+        name: values.name,
+        class: values.class,
+        isTheory: data[editIdx].isTheory,
+      };
+      
+      let newRow: DataRow;
+      
+      if (baseData.isTheory) {
+        // 理论课 - 只能编辑节次，不能修改星期
+        if (!values.periods || values.periods.length === 0) {
+          antdMessage.error("请至少选择一个节次");
+          return;
+        }
+        
+        newRow = {
+          ...baseData,
+          weekday: data[editIdx].weekday, // 保持星期不变
+          periods: values.periods.map(Number).sort((a: number, b: number) => a - b),
+          weekType: null,
+          timeBlocks: []
+        };
       } else {
-        newRow.weekday = 0;
-        newRow.periods = [];
+        // 实训课 - 只能编辑时间段，不能修改单双周
+        if (!values.timeBlocks || values.timeBlocks.length === 0) {
+          antdMessage.error("请至少选择一个时间段");
+          return;
+        }
+        
+        newRow = {
+          ...baseData,
+          weekday: 0,
+          periods: [],
+          weekType: data[editIdx].weekType, // 保持单双周不变
+          timeBlocks: values.timeBlocks
+        };
       }
+      
+      console.log("编辑后的数据:", JSON.stringify(newRow, null, 2));
+      
       const newData = [...data];
       newData[editIdx] = newRow;
       setData(newData);
       setEditModalOpen(false);
       setEditRow(null);
       setEditIdx(null);
+      
       await fetch(`${apiUrl}/api/upload-excel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: "excel_data", value: newData }),
       });
+      
       antdMessage.success("修改成功");
       fetchData();
     } catch (err) {
+      console.error("保存失败:", err);
       antdMessage.error("保存失败");
     }
   };
 
-  // 保存时拆分多条数据写入
+  // 保存时拆分多条数据写入（仅用于新增）
   const handleEditSaveWithCustom = async () => {
     try {
       const values = await form.validateFields();
       if (addModalOpen) {
-        // 新增操作：每个"星期+节次"组合生成一条数据
+        // 创建更灵活的数据结构
+        const formData = {
+          name: values.name,
+          class: values.class
+        };
+        
         let newRows: DataRow[] = [];
-        for (const [weekday, period] of weekPeriod) {
-          newRows.push({
-            ...values,
-            weekday,
-            periods: [period],
-            weekType: null,
-            timeBlocks: [],
-          });
+        
+        if (values.isTheory) {
+          // 理论课处理
+          if (!weekPeriod.length) {
+            antdMessage.error("请至少选择一个星期+节次组合");
+            return;
+          }
+          
+          // 按星期分组合并节次
+          const weekdayPeriods: Record<number, number[]> = {};
+          for (const [weekday, period] of weekPeriod) {
+            if (!weekdayPeriods[weekday]) {
+              weekdayPeriods[weekday] = [];
+            }
+            weekdayPeriods[weekday].push(period);
+          }
+          
+          // 为每个星期创建一个包含所有节次的记录
+          for (const [weekday, periods] of Object.entries(weekdayPeriods)) {
+            newRows.push({
+              ...formData,
+              weekday: Number(weekday),
+              isTheory: true,
+              periods: periods.sort((a, b) => a - b), // 确保节次按顺序排列
+              weekType: null,
+              timeBlocks: []
+            });
+          }
+        } else {
+          // 实训课处理
+          if (!weekTypeTimeBlock.length) {
+            antdMessage.error("请至少选择一个单双周+时间段组合");
+            return;
+          }
+          
+          // 按单双周分组合并时间段
+          const weekTypeBlocks: Record<string, string[]> = {
+            'true': [], // 单周
+            'false': [] // 双周
+          };
+          
+          for (const [weekType, timeBlock] of weekTypeTimeBlock) {
+            weekTypeBlocks[String(weekType)].push(timeBlock);
+          }
+          
+          // 为每种周类型创建一个包含所有时间段的记录
+          for (const [weekTypeStr, blocks] of Object.entries(weekTypeBlocks)) {
+            if (blocks.length > 0) {
+              newRows.push({
+                ...formData,
+                weekday: 0,
+                isTheory: false,
+                periods: [],
+                weekType: weekTypeStr === 'true',
+                timeBlocks: blocks
+              });
+            }
+          }
         }
-        // 替换原有一条为多条
-        const newData = [...data, ...newRows];
+        
+        console.log("新增数据:", JSON.stringify(newRows, null, 2));
+        
+        // 将新数据添加到数组顶部
+        const newData = [...newRows, ...data];
         setData(newData);
         setAddModalOpen(false);
         await fetch(`${apiUrl}/api/upload-excel`, {
@@ -382,35 +499,9 @@ export default function Home() {
         });
         antdMessage.success("新增成功");
         fetchData();
-      } else if (editIdx !== null) {
-        // 编辑操作：每个"星期+节次"组合生成一条数据
-        let newRows: DataRow[] = [];
-        for (const [weekday, period] of weekPeriod) {
-          newRows.push({
-            ...data[editIdx],
-            ...values,
-            weekday,
-            periods: [period],
-            weekType: null,
-            timeBlocks: [],
-          });
-        }
-        // 替换原有一条为多条
-        const newData = [...data];
-        newData.splice(editIdx, 1, ...newRows);
-        setData(newData);
-        setEditModalOpen(false);
-        setEditRow(null);
-        setEditIdx(null);
-        await fetch(`${apiUrl}/api/upload-excel`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: "excel_data", value: newData }),
-        });
-        antdMessage.success("修改成功");
-        fetchData();
       }
     } catch (err) {
+      console.error("保存失败:", err);
       antdMessage.error("保存失败");
     }
   };
@@ -544,64 +635,109 @@ export default function Home() {
           )}
         </Content>
       </Layout>
-      <Modal open={addModalOpen} onCancel={handleAddCancel} onOk={handleEditSaveWithCustom} title="批量新增数据" destroyOnHidden>
+      <Modal open={addModalOpen} onCancel={handleAddCancel} onOk={handleEditSaveWithCustom} title="批量新增数据" width={600} destroyOnClose>
         <Form form={form} layout="vertical">
-          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}> <Input autoComplete="off" /> </Form.Item>
-          <Form.Item name="class" label="班级" rules={[{ required: true, message: '请输入班级' }]}> <Input autoComplete="off" /> </Form.Item>
-          <Form.Item name="isTheory" label="理论/实训" valuePropName="checked">
-            <Switch checkedChildren="理论" unCheckedChildren="实训" onChange={handleTheorySwitch} />
+          <Form.Item name="name" label={<label htmlFor="add-name">姓名</label>} rules={[{ required: true, message: '请输入姓名' }]}>
+            <Input id="add-name" autoComplete="off" placeholder="请输入教师姓名" />
           </Form.Item>
+          <Form.Item name="class" label={<label htmlFor="add-class">班级</label>} rules={[{ required: true, message: '请输入班级' }]}>
+            <Input id="add-class" autoComplete="off" placeholder="请输入班级名称" />
+          </Form.Item>
+          <Form.Item name="isTheory" label="课程类型" valuePropName="checked">
+            <Switch 
+              checkedChildren="理论课" 
+              unCheckedChildren="实训课" 
+              onChange={handleTheorySwitch} 
+            />
+          </Form.Item>
+          
           {form.getFieldValue('isTheory') ? (
-            <Form.Item label="星期+节次">
-              <WeekPeriodTable value={weekPeriod} onChange={setWeekPeriod} />
-            </Form.Item>
+            <div className="bg-blue-50 p-4 rounded mb-4">
+              <div className="text-blue-700 mb-2 font-semibold">理论课说明：</div>
+              <p className="text-sm mb-2">当选择多个星期和节次时，系统会按星期分组，为每个星期创建一条包含所选节次的记录</p>
+              <Form.Item label="星期+节次" className="mt-2">
+                <WeekPeriodTable value={weekPeriod} onChange={setWeekPeriod} />
+              </Form.Item>
+            </div>
           ) : (
-            <Form.Item label="单双周+时间段">
-              <WeekTypeTimeBlockTable value={weekTypeTimeBlock} onChange={setWeekTypeTimeBlock} />
-            </Form.Item>
+            <div className="bg-green-50 p-4 rounded mb-4">
+              <div className="text-green-700 mb-2 font-semibold">实训课说明：</div>
+              <p className="text-sm mb-2">当选择多个单双周和时间段时，系统会按单双周分组，为每种周类型创建一条包含所选时间段的记录</p>
+              <Form.Item label="单双周+时间段" className="mt-2">
+                <WeekTypeTimeBlockTable value={weekTypeTimeBlock} onChange={setWeekTypeTimeBlock} />
+              </Form.Item>
+            </div>
           )}
+          
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="text-gray-500 text-sm">注：添加的数据将显示在数据列表的最前面</div>
+          </div>
         </Form>
       </Modal>
-      <Modal open={editModalOpen} onCancel={handleEditCancel} onOk={handleEditSaveSingle} title="编辑数据" destroyOnHidden>
-        <EditSingleForm editForm={editForm} editRow={editRow} />
+      <Modal open={editModalOpen} onCancel={handleEditCancel} onOk={handleEditSaveSingle} title="编辑数据" width={450} destroyOnClose>
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="name" label="姓名">
+            <Input autoComplete="off" disabled />
+          </Form.Item>
+          <Form.Item name="class" label="班级">
+            <Input autoComplete="off" disabled />
+          </Form.Item>
+          
+          {/* 显示课程类型，但不可编辑 */}
+          <Form.Item label="课程类型">
+            <Input value={editRow?.isTheory ? '理论课' : '实训课'} disabled />
+          </Form.Item>
+          
+          {editRow?.isTheory ? (
+            <>
+              {/* 理论课 - 显示星期但不可编辑 */}
+              <Form.Item label="星期">
+                <Input 
+                  value={editRow ? `周${['一','二','三','四','五'][editRow.weekday - 1]}` : ''} 
+                  disabled 
+                />
+              </Form.Item>
+              
+              {/* 理论课 - 只能编辑节次 */}
+              <Form.Item 
+                name="periods" 
+                label="节次" 
+                rules={[{ required: true, message: '请选择节次' }]}
+              >
+                <Select mode="multiple" placeholder="请选择节次">
+                  {PERIODS.map(p => (
+                    <Select.Option key={p} value={p}>{p}节</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </>
+          ) : (
+            <>
+              {/* 实训课 - 显示单双周但不可编辑 */}
+              <Form.Item label="周类型">
+                <Input value={editRow?.weekType ? '单周' : '双周'} disabled />
+              </Form.Item>
+              
+              {/* 实训课 - 只能编辑时间段 */}
+              <Form.Item 
+                name="timeBlocks" 
+                label="时间段" 
+                rules={[{ required: true, message: '请选择时间段' }]}
+              >
+                <Select mode="multiple" placeholder="请选择时间段">
+                  {TIME_BLOCKS.map(tb => (
+                    <Select.Option key={tb} value={tb}>{tb}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </>
+          )}
+          
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="text-gray-500 text-sm">注意：只能修改当前行的节次或时间段</div>
+          </div>
+        </Form>
       </Modal>
     </Layout>
-  );
-}
-
-// 编辑弹窗表单控件
-function EditSingleForm({ editForm, editRow }: { editForm: any, editRow: DataRow | null }) {
-  if (!editRow) return null;
-  const isTheory = editRow.isTheory;
-  return (
-    <Form form={editForm} layout="vertical">
-      <Form.Item name="name" label="姓名">
-        <Input autoComplete="off" disabled />
-      </Form.Item>
-      <Form.Item name="class" label="班级">
-        <Input autoComplete="off" disabled />
-      </Form.Item>
-      <Form.Item label="类型">
-        <Input value={isTheory ? '理论' : '实训'} disabled />
-      </Form.Item>
-      {isTheory && (
-        <Form.Item name="weekday" label={<label htmlFor="edit-weekday">星期</label>} rules={[{ required: true, message: '请选择星期' }]}> 
-          <Select id="edit-weekday">{WEEKDAYS.map(w => (<Select.Option key={w} value={w}>周{['一','二','三','四','五'][w-1]}</Select.Option>))}</Select> 
-        </Form.Item>
-      )}
-      {isTheory && (
-        <Form.Item name="periods" label={<label htmlFor="edit-periods">节次</label>} rules={[{ required: true, message: '请选择节次' }]}> 
-          <Select id="edit-periods" mode="multiple">{PERIODS.map(p => (<Select.Option key={p} value={p}>{p}节</Select.Option>))}</Select> 
-        </Form.Item>
-      )}
-      {!isTheory && (
-        <Form.Item name="weekType" label="单双周">
-          <Switch checkedChildren="单周" unCheckedChildren="双周" disabled />
-        </Form.Item>
-      )}
-      {!isTheory && (
-        <Form.Item name="timeBlocks" label="时间段" rules={[{ required: true, message: '请选择时间段' }]}> <Select mode="multiple">{TIME_BLOCKS.map(tb => (<Select.Option key={tb} value={tb}>{tb}</Select.Option>))}</Select> </Form.Item>
-      )}
-    </Form>
   );
 }
