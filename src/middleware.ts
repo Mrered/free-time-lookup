@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// 不需要验证的路径列表
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/register', '/api/auth/register'];
+// 不需要验证的路径列表（移除注册相关路径）
+const PUBLIC_PATHS = ['/login', '/api/auth/login'];
 
 export function middleware(request: NextRequest) {
   const { pathname, hostname, searchParams } = request.nextUrl;
