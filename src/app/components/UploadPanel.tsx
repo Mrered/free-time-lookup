@@ -1,17 +1,16 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Button } from "antd";
 import { ReactNode } from "react";
 
 interface UploadPanelProps {
   uploading: boolean;
   message: string;
-  isTest: boolean;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
   historyButtons?: ReactNode;
 }
 
-export default function UploadPanel({ uploading, message, isTest, onFileChange, onClear, historyButtons }: UploadPanelProps) {
+export default function UploadPanel({ uploading, message, onFileChange, onClear, historyButtons }: UploadPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="w-full flex flex-col items-center gap-6">
@@ -23,7 +22,7 @@ export default function UploadPanel({ uploading, message, isTest, onFileChange, 
           </div>
         )}
       </div>
-      <p className="text-gray-600 text-center mb-2">请选择一个 Excel 文件（.xlsx/.xls），上传后将自动写入 Redis KV 数据库。</p>
+      <p className="text-gray-600 text-center mb-2">请选择一个 Excel 文件（.xlsx/.xls），上传后将自动写入数据库。</p>
       <label className="w-full flex flex-col items-center cursor-pointer">
         <span className="mb-2 text-lg font-medium text-gray-700">选择 Excel 文件</span>
         <input
@@ -38,21 +37,7 @@ export default function UploadPanel({ uploading, message, isTest, onFileChange, 
           {uploading ? "上传中..." : "点击上传"}
         </span>
       </label>
-      {isTest && (
-        <Button
-          onClick={onClear}
-          loading={uploading}
-          danger
-          type="primary"
-          className="w-full"
-        >
-          清空数据库（仅测试环境可见）
-        </Button>
-      )}
       {message && <div className="w-full text-center text-blue-600 font-medium mt-2">{message}</div>}
-      <div className="w-full mt-4 text-xs text-gray-400 text-center">
-        <p>如需清空所有数据，请点击下方红色按钮（仅测试环境可见）。</p>
-      </div>
     </div>
   );
 } 

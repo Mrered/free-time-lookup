@@ -20,6 +20,45 @@ const TIME_BLOCKS = [
   "14:00-17:30"
 ];
 
+// 时间段代码映射 - 用于解决格式和键冲突问题
+const TIME_BLOCK_CODES = {
+  "A1": "7:30-13:00",
+  "A2": "14:00-19:00",
+  "B1": "8:30-12:00",
+  "B2": "14:00-17:30"
+};
+
+// 反向映射表 - 从完整时间段到代码
+const TIME_BLOCK_REVERSE_MAP = Object.entries(TIME_BLOCK_CODES).reduce(
+  (acc, [code, timeBlock]) => {
+    acc[timeBlock] = code;
+    return acc;
+  }, 
+  {} as Record<string, string>
+);
+
+// 从代码获取完整时间段
+const getFullTimeBlock = (code: string): string => {
+  return TIME_BLOCK_CODES[code as keyof typeof TIME_BLOCK_CODES] || "";
+};
+
+// 从完整时间段获取代码
+const getTimeBlockCode = (timeBlock: string): string => {
+  // 尝试直接匹配
+  if (TIME_BLOCK_REVERSE_MAP[timeBlock]) {
+    return TIME_BLOCK_REVERSE_MAP[timeBlock];
+  }
+  
+  // 尝试前缀匹配
+  for (const [fullTimeBlock, code] of Object.entries(TIME_BLOCK_REVERSE_MAP)) {
+    if (fullTimeBlock.startsWith(timeBlock)) {
+      return code;
+    }
+  }
+  
+  return "";
+};
+
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
 const WEEK_TYPES = [true, false]; // true: 单周, false: 双周
@@ -50,7 +89,6 @@ export default function Home() {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
-  const isTest = process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development";
 
   useEffect(() => {
     const handleResize = () => {
@@ -368,7 +406,11 @@ export default function Home() {
           else if (weekTypeValue === 0 || weekTypeValue === "0") weekType = false;
         }
         
-        const timeBlocks = timeBlockIdxs.map((i, idx) => row[i] ? TIME_BLOCKS[idx] : null).filter(Boolean) as string[];
+        // 确保使用完整的时间段格式
+        const timeBlocks = timeBlockIdxs.map((i, idx) => {
+          // 只有当单元格有值时才使用对应的完整时间段
+          return row[i] ? TIME_BLOCKS[idx] : null;
+        }).filter(Boolean) as string[];
         
         // 日志输出
         console.log(`[Excel解析] 第${rowIdx+3}行: 原始=`, row);
@@ -794,55 +836,99 @@ export default function Home() {
 
   // 修改WeekTypeTimeBlockTable函数，支持拖动框选功能
   function WeekTypeTimeBlockTable({ value = [], onChange }: { value?: [boolean, string][], onChange?: (val: [boolean, string][]) => void }) {
-    const selected = new Set((value || []).map(([w, t]) => `${w}-${t}`));
+    // 调试日志，查看传入的数据
+    console.log("WeekTypeTimeBlockTable初始化:", {
+      传入值: value,
+      预定义的时间段: TIME_BLOCKS
+    });
+    
+    // 创建一个映射表，用于快速查找单元格是否被选中
+    const selectedMap = new Map<string, boolean>();
+    
+    // 转换传入值中的时间段为代码，并创建选中映射
+    (value || []).forEach(([weekType, timeBlock]) => {
+      // 获取时间段对应的代码
+      const timeBlockCode = getTimeBlockCode(timeBlock);
+      
+      if (timeBlockCode) {
+        const key = `${weekType ? "单周" : "双周"}-${timeBlockCode}`;
+        selectedMap.set(key, true);
+      } else {
+        console.error(`警告: 无法识别的时间段值 "${timeBlock}"`);
+      }
+    });
+    
     const [isDragging, setIsDragging] = useState(false);
-    const [startCell, setStartCell] = useState<{w: boolean, t: string} | null>(null);
-    const [currentCell, setCurrentCell] = useState<{w: boolean, t: string} | null>(null);
+    const [startCell, setStartCell] = useState<{wLabel: string, code: string} | null>(null);
+    const [currentCell, setCurrentCell] = useState<{wLabel: string, code: string} | null>(null);
     const [dragMode, setDragMode] = useState<'select' | 'deselect' | null>(null);
+    
+    // 单双周标签与布尔值的映射
+    const weekTypeMap = {
+      "单周": true,
+      "双周": false
+    };
     
     // 计算当前框选的单元格
     const getSelectedCellsInDrag = () => {
       if (!startCell || !currentCell) return new Set<string>();
       
-      // 单双周只有两行，我们找出范围内的所有时间段
-      const weekTypes = new Set<boolean>();
-      if (startCell.w === currentCell.w) {
-        weekTypes.add(startCell.w);
-      } else {
-        WEEK_TYPES.forEach(wt => weekTypes.add(wt));
+      // 获取行索引（单周/双周）
+      const weekLabels = ["单周", "双周"];
+      const startRowIdx = weekLabels.indexOf(startCell.wLabel);
+      const endRowIdx = weekLabels.indexOf(currentCell.wLabel);
+      const minRowIdx = Math.min(startRowIdx, endRowIdx);
+      const maxRowIdx = Math.max(startRowIdx, endRowIdx);
+      
+      // 获取列索引（时间段代码）
+      const timeBlockCodes = Object.keys(TIME_BLOCK_CODES);
+      const startColIdx = timeBlockCodes.indexOf(startCell.code);
+      const endColIdx = timeBlockCodes.indexOf(currentCell.code);
+      
+      // 确保索引有效
+      if (startColIdx === -1 || endColIdx === -1) {
+        console.error("无效的时间段代码索引:", startCell.code, currentCell.code);
+        return new Set<string>();
       }
       
-      // 找出选择的时间段范围
-      const startIdx = TIME_BLOCKS.indexOf(startCell.t);
-      const endIdx = TIME_BLOCKS.indexOf(currentCell.t);
-      const minIdx = Math.min(startIdx, endIdx);
-      const maxIdx = Math.max(startIdx, endIdx);
+      const minColIdx = Math.min(startColIdx, endColIdx);
+      const maxColIdx = Math.max(startColIdx, endColIdx);
       
-      const timeBlocks = TIME_BLOCKS.slice(minIdx, maxIdx + 1);
-      
-      // 生成所有单元格的键
+      // 生成所有框选的单元格键
       const cellsInDrag = new Set<string>();
-      weekTypes.forEach(wt => {
-        timeBlocks.forEach(tb => {
-          cellsInDrag.add(`${wt}-${tb}`);
-        });
-      });
+      for (let rowIdx = minRowIdx; rowIdx <= maxRowIdx; rowIdx++) {
+        const weekLabel = weekLabels[rowIdx];
+        for (let colIdx = minColIdx; colIdx <= maxColIdx; colIdx++) {
+          const code = timeBlockCodes[colIdx];
+          cellsInDrag.add(`${weekLabel}-${code}`);
+        }
+      }
       
       return cellsInDrag;
     };
     
     // 处理单元格鼠标按下事件
-    const handleMouseDown = (w: boolean, t: string, isSelected: boolean) => {
+    const handleMouseDown = (wLabel: string, code: string, isSelected: boolean) => {
+      console.log("MouseDown点击:", {
+        周类型: wLabel,
+        时间段代码: code,
+        完整时间段: getFullTimeBlock(code),
+        已选中: isSelected
+      });
       setIsDragging(true);
-      setStartCell({w, t});
-      setCurrentCell({w, t});
+      setStartCell({wLabel, code});
+      setCurrentCell({wLabel, code});
       setDragMode(isSelected ? 'deselect' : 'select');
     };
     
     // 处理单元格鼠标移动事件
-    const handleMouseMove = (w: boolean, t: string) => {
+    const handleMouseMove = (wLabel: string, code: string) => {
       if (isDragging) {
-        setCurrentCell({w, t});
+        console.log("MouseMove拖动:", {
+          从: startCell ? `${startCell.wLabel}-${startCell.code}` : "无",
+          到: `${wLabel}-${code}`
+        });
+        setCurrentCell({wLabel, code});
       }
     };
     
@@ -851,26 +937,63 @@ export default function Home() {
       if (isDragging && startCell && currentCell && dragMode) {
         // 计算框选范围内的所有单元格
         const cellsInDrag = getSelectedCellsInDrag();
+        console.log("框选结果:", {
+          模式: dragMode === 'select' ? '选中' : '取消选中',
+          开始单元格: startCell ? `${startCell.wLabel}-${startCell.code}` : "无",
+          结束单元格: currentCell ? `${currentCell.wLabel}-${currentCell.code}` : "无",
+          框选单元格: Array.from(cellsInDrag),
+          当前已选中: Array.from(selectedMap.keys())
+        });
         
         // 复制当前选中状态
-        let arr = value ? [...value] : [];
+        let newValue = [...(value || [])];
         
         if (dragMode === 'select') {
           // 添加框选的单元格
+          const added: string[] = [];
+          
           cellsInDrag.forEach(key => {
-            const [wStr, t] = key.split('-');
-            const w = wStr === 'true';
-            if (!selected.has(key)) {
-              arr.push([w, t]);
+            const [weekLabel, code] = key.split('-');
+            
+            // 通过代码获取完整时间段
+            const fullTimeBlock = getFullTimeBlock(code);
+            if (fullTimeBlock) {
+              // 如果此单元格未被选中，则添加到选中列表
+              if (!selectedMap.has(key)) {
+                const weekType = weekTypeMap[weekLabel as keyof typeof weekTypeMap];
+                newValue.push([weekType, fullTimeBlock]);
+                added.push(key);
+              }
+            } else {
+              console.error(`错误: 无效的时间段代码 "${code}"`);
             }
           });
+          
+          console.log("添加的单元格:", added);
         } else {
           // 移除框选的单元格
-          arr = arr.filter(([w, t]) => !cellsInDrag.has(`${w}-${t}`));
+          const before = newValue.length;
+          newValue = newValue.filter(([weekType, timeBlock]) => {
+            const code = getTimeBlockCode(timeBlock);
+            if (!code) return true; // 保留无法识别的时间段
+            
+            const key = `${weekType ? "单周" : "双周"}-${code}`;
+            return !cellsInDrag.has(key);
+          });
+          const removed = before - newValue.length;
+          
+          console.log("移除的单元格数量:", removed);
         }
         
+        // 调试日志
+        console.log("最终选中状态:", newValue.map(([weekType, timeBlock]) => ({
+          周类型: weekType ? "单周" : "双周",
+          时间段: timeBlock,
+          代码: getTimeBlockCode(timeBlock)
+        })));
+        
         // 更新选中状态
-        onChange?.(arr);
+        onChange?.(newValue);
       }
       
       // 重置拖动状态
@@ -881,9 +1004,9 @@ export default function Home() {
     };
     
     // 获取当前绘制的单元格视觉状态
-    const getCellStyle = (w: boolean, t: string) => {
-      const key = `${w}-${t}`;
-      const isSelected = selected.has(key);
+    const getCellStyle = (wLabel: string, code: string) => {
+      const key = `${wLabel}-${code}`;
+      const isSelected = selectedMap.has(key);
       
       if (isDragging) {
         const cellsInDrag = getSelectedCellsInDrag();
@@ -931,6 +1054,9 @@ export default function Home() {
       }
     }, [isDragging]);
     
+    const weekLabels = ["单周", "双周"];
+    const timeBlockCodes = Object.keys(TIME_BLOCK_CODES);
+    
     return (
       <div style={{ overflowX: 'auto' }} onMouseLeave={handleMouseUp}>
         <div className="text-xs text-gray-500 mb-1">
@@ -945,41 +1071,55 @@ export default function Home() {
           <thead>
             <tr>
               <th></th>
-              {TIME_BLOCKS.map(tb => <th key={tb}>{tb}</th>)}
+              {timeBlockCodes.map((code, idx) => (
+                <th key={`head-${idx}-${code}`}>{getFullTimeBlock(code)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {WEEK_TYPES.map(wt => (
-              <tr key={wt ? '单周' : '双周'}>
-                <td className="font-bold">{wt ? '单周' : '双周'}</td>
-                {TIME_BLOCKS.map(tb => {
-                  const key = `${wt}-${tb}`;
-                  const isSelected = selected.has(key);
-                  const cellStyle = getCellStyle(wt, tb);
-                  
-                  return (
-                    <td 
-                      key={tb}
-                      className="p-1"
-                      onMouseDown={preventDefault}
-                    >
-                      <button
-                        type="button"
-                        className={`w-16 h-7 rounded ${cellStyle} border border-blue-200 focus:outline-none transition-colors`}
-                        onMouseDown={(e) => {
-                          preventDefault(e);
-                          handleMouseDown(wt, tb, isSelected);
-                        }}
-                        onMouseMove={() => handleMouseMove(wt, tb)}
-                        onMouseUp={handleMouseUp}
+            {weekLabels.map((wLabel, rowIdx) => {
+              // 输出调试日志，显示当前行对应的选中状态
+              const rowSelectedCells = Array.from(selectedMap.keys())
+                .filter(key => key.startsWith(wLabel))
+                .map(key => key.split('-')[1]);
+              
+              console.log(`渲染 ${wLabel} 行:`, {
+                选中的时间段代码: rowSelectedCells,
+                对应时间段: rowSelectedCells.map(code => getFullTimeBlock(code))
+              });
+              
+              return (
+                <tr key={`row-${rowIdx}-${wLabel}`}>
+                  <td className="font-bold">{wLabel}</td>
+                  {timeBlockCodes.map((code, colIdx) => {
+                    const key = `${wLabel}-${code}`;
+                    const isSelected = selectedMap.has(key);
+                    const cellStyle = getCellStyle(wLabel, code);
+                    
+                    return (
+                      <td 
+                        key={`cell-${rowIdx}-${colIdx}-${code}`}
+                        className="p-1"
+                        onMouseDown={preventDefault}
                       >
-                        {isSelected && !isDragging ? '✔' : ''}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                        <button
+                          type="button"
+                          className={`w-16 h-7 rounded ${cellStyle} border border-blue-200 focus:outline-none transition-colors`}
+                          onMouseDown={(e) => {
+                            preventDefault(e);
+                            handleMouseDown(wLabel, code, isSelected);
+                          }}
+                          onMouseMove={() => handleMouseMove(wLabel, code)}
+                          onMouseUp={handleMouseUp}
+                        >
+                          {isSelected && !isDragging ? '✓' : ''}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1022,12 +1162,30 @@ export default function Home() {
           return;
         }
         
+        // 验证并确保时间段格式正确
+        const validTimeBlocks: string[] = [];
+        for (const timeBlock of values.timeBlocks) {
+          if (TIME_BLOCKS.includes(timeBlock)) {
+            validTimeBlocks.push(timeBlock);
+          } else {
+            // 尝试匹配完整时间段
+            const matchedTimeBlock = TIME_BLOCKS.find(tb => tb.startsWith(timeBlock));
+            if (matchedTimeBlock) {
+              console.log(`编辑时修复时间段: 从 "${timeBlock}" 到 "${matchedTimeBlock}"`);
+              validTimeBlocks.push(matchedTimeBlock);
+            } else {
+              antdMessage.error(`无效的时间段: ${timeBlock}`);
+              return;
+            }
+          }
+        }
+        
         newRow = {
           ...baseData,
           weekday: 0,
           periods: [],
           weekType: data[editIdx].weekType, // 保持单双周不变
-          timeBlocks: values.timeBlocks
+          timeBlocks: validTimeBlocks
         };
       }
       
@@ -1111,7 +1269,21 @@ export default function Home() {
           };
           
           for (const [weekType, timeBlock] of weekTypeTimeBlock) {
-            weekTypeBlocks[String(weekType)].push(timeBlock);
+            // 验证时间段格式
+            if (!TIME_BLOCKS.includes(timeBlock)) {
+              console.error(`保存时发现无效时间段: ${timeBlock}`);
+              // 尝试找到与之匹配的完整时间段
+              const matchedTimeBlock = TIME_BLOCKS.find(tb => tb.startsWith(timeBlock));
+              if (matchedTimeBlock) {
+                console.log(`自动修复时间段: 从 "${timeBlock}" 到 "${matchedTimeBlock}"`);
+                weekTypeBlocks[String(weekType)].push(matchedTimeBlock);
+              } else {
+                antdMessage.error(`无效的时间段: ${timeBlock}`);
+                return;
+              }
+            } else {
+              weekTypeBlocks[String(weekType)].push(timeBlock);
+            }
           }
           
           // 为每种周类型创建一个包含所有时间段的记录
@@ -1160,16 +1332,32 @@ export default function Home() {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       {!isNarrow && (
-        <Sider width={200} style={{ background: "#fff", boxShadow: "2px 0 8px #f0f1f2" }}>
+        <Sider width={200} style={{ 
+          background: "#fff", 
+          boxShadow: "2px 0 8px #f0f1f2", 
+          display: "flex", 
+          flexDirection: "column", 
+          height: "100vh", 
+          position: "fixed", 
+          left: 0,
+          top: 0,
+          overflowY: "auto"
+        }}>
           <div className="text-2xl font-bold text-center py-6 text-blue-700 tracking-wide select-none">控制台</div>
           <Menu
             mode="inline"
             selectedKeys={[selectedKey]}
             onClick={e => setSelectedKey(e.key as string)}
             items={menuItems}
-            style={{ height: "100%", borderRight: 0, fontSize: 16 }}
+            style={{ 
+              flex: 1, 
+              borderRight: 0, 
+              fontSize: 16, 
+              overflowY: "auto",
+              height: "calc(100vh - 170px)" // 减去顶部文字和底部注销按钮的高度
+            }}
           />
-          <div className="p-4">
+          <div className="mt-auto py-4 px-4 bg-white" style={{boxShadow: "0 -2px 8px rgba(0,0,0,0.05)"}}>
             <UserMenu />
           </div>
         </Sider>
@@ -1201,22 +1389,30 @@ export default function Home() {
                 setDrawerOpen(false);
               }}
               items={menuItems}
-              style={{ height: "100%", borderRight: 0, fontSize: 16 }}
+              style={{ 
+                flex: 1, 
+                borderRight: 0, 
+                fontSize: 16,
+                overflowY: "auto",
+                height: "calc(100vh - 170px)"
+              }}
             />
-            <div className="p-4">
+            <div className="mt-auto py-4 px-4 bg-white" style={{boxShadow: "0 -2px 8px rgba(0,0,0,0.05)"}}>
               <UserMenu />
             </div>
           </Drawer>
         </>
       )}
-      <Layout>
-        {/* 添加顶部用户信息栏 */}
-        <div className="bg-white shadow-sm p-3 flex justify-end">
-          <UserMenu />
-        </div>
-        
-        <Content style={{ margin: "0 32px 32px", background: "#f8fafc", borderRadius: 16, boxShadow: "0 2px 16px #e6e6e6", minHeight: 600, padding: 32 }}>
-          {/* 移除重复的用户菜单 */}
+      <Layout>        
+        <Content style={{ 
+          margin: "32px 32px 32px", 
+          marginLeft: isNarrow ? "32px" : "232px", // 非窄屏时为侧边栏留出空间 (200px宽度 + 32px外边距)
+          background: "#f8fafc", 
+          borderRadius: 16, 
+          boxShadow: "0 2px 16px #e6e6e6", 
+          minHeight: 600, 
+          padding: 32 
+        }}>
           {isNarrow ? (
             <>
               {/* 移除多余的顶部操作栏，在各面板内集成操作按钮 */}
@@ -1224,7 +1420,6 @@ export default function Home() {
                 <UploadPanel
                   uploading={uploading}
                   message={message}
-                  isTest={isTest}
                   onFileChange={handleFileChange}
                   onClear={handleClear}
                   historyButtons={
@@ -1307,7 +1502,6 @@ export default function Home() {
                 <UploadPanel
                   uploading={uploading}
                   message={message}
-                  isTest={isTest}
                   onFileChange={handleFileChange}
                   onClear={handleClear}
                   historyButtons={

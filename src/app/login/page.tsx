@@ -120,12 +120,6 @@ function LoginForm() {
         style={{ width: 400, maxWidth: "90%" }}
         className="shadow-md"
       >
-        {isTestMode && (
-          <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
-            测试模式已启用
-          </div>
-        )}
-        
         {loginErrors.length > 0 && (
           <Alert
             type="error"
