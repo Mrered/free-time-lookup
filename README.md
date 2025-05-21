@@ -24,6 +24,8 @@ npm run dev
 
 浏览器打开 [http://localhost:3000](http://localhost:3000/) 查看效果。
 
+> 本地运行时不会进行身份认证。
+
 ### 🏗️ 构建与生产部署
 
 ```bash
@@ -35,14 +37,16 @@ npm run start
 
 ### ⚙️ 环境变量
 
-| 变量名    | 说明           | 示例值                                      |
-|-----------|----------------|---------------------------------------------|
-| REDIS_URL | Redis 连接地址 | rediss://default:<password>@<host>:<port>   |
+|  变量名     |     说明       |                   示例值                    |
+|:-----------:|:--------------:|:-------------------------------------------:|
+|  REDIS_URL  | Redis 连接地址 | rediss://default:<password>@<host>:<port>   |
+| TOTP_SECRET |    TOTP 密钥   |               <base32-secret>               |
 
 你可以在根目录下新建 `.env.local` 文件，写入：
 
 ```
 REDIS_URL=rediss://default:<password>@<host>:<port>
+TOTP_SECRET=<base32-secret>
 ```
 
 ℹ️ Redis 连接地址可在 Vercel Redis 控制台获取。

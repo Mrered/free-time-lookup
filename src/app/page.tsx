@@ -25,7 +25,7 @@ interface DataRow {
 // API基础URL，从环境变量读取，若未设置则为空字符串
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
-// 客户端检查用户是否“可能”已登录（仅检查cookie是否存在）
+// 客户端检查用户是否"可能"已登录（仅检查cookie是否存在）
 // 真正的认证状态由服务器在API请求时确认
 function isLoggedInClientCheck(): boolean {
   if (typeof window === 'undefined') return false;
@@ -70,7 +70,7 @@ function maskName(name: string): string {
 }
 
 export default function HomePage() {
-  const [allData, setAllData] = useState<DataRow[]>([]); // 存储所有教师的原始数据
+  const [allData, setAllData] = useState<DataRow[]>([]); // 存储所有学生的原始数据
   const [weekType, setWeekType] = useState<boolean>(true); // 当前选择的周类型：true为单周, false为双周
   const [showTheory, setShowTheory] = useState(true); // 是否显示理论课空闲时间
   const [showTraining, setShowTraining] = useState(true); // 是否显示实训课空闲时间
@@ -80,51 +80,51 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true); // 主数据加载状态
   const [modalInfo, setModalInfo] = useState<any>(null); // 日历事件点击后弹窗显示的信息
 
-  // Effect Hook: 组件挂载后获取所有教师数据
+  // Effect Hook: 组件挂载后获取所有学生数据
   useEffect(() => {
-    setLoading(true); // 开始加载，设置loading状态为true
-    fetch(`${apiUrl}/api/upload-excel`, { method: "GET" })
+    setLoading(true);
+    // 判断是否登录
+    const isLoggedIn = isLoggedInClientCheck();
+    const url = isLoggedIn ? `${apiUrl}/api/upload-excel` : `${apiUrl}/api/public-today`;
+    fetch(url, { method: "GET" })
       .then(res => {
         if (!res.ok) {
-          // 如果API返回401或其它错误，则不处理数据，并可能需要用户重新登录
           if (res.status === 401) {
-            console.error("获取教师数据未授权，可能需要重新登录。");
-            // 可选：触发登出或跳转到登录页
-            // logout();
+            console.error("获取学生数据未授权，可能需要重新登录。");
           } else {
-            console.error(`获取教师数据失败，状态码: ${res.status}`);
+            console.error(`获取学生数据失败，状态码: ${res.status}`);
           }
-          return null; // 返回null或抛出错误，以便后续catch处理
+          return null;
         }
         return res.json();
       })
       .then(result => {
-        if (result && result.value) { // 确保result和result.value存在
-          if (Array.isArray(result.value)) {
-            setAllData(result.value);
-          } else if (typeof result.value === "string") {
+        if (result) {
+          // 登录后接口返回 result.value，未登录接口返回 result.data
+          const data = result.value || result.data;
+          if (Array.isArray(data)) {
+            setAllData(data);
+          } else if (typeof data === "string") {
             try {
-              setAllData(JSON.parse(result.value));
+              setAllData(JSON.parse(data));
             } catch (error) {
-              console.error("解析获取的教师数据失败 (字符串格式):", error);
+              console.error("解析获取的学生数据失败 (字符串格式):", error);
               setAllData([]);
             }
           } else {
-            console.warn("获取的教师数据格式非预期:", result.value);
+            console.warn("获取的学生数据格式非预期:", data);
             setAllData([]);
           }
-        } else if (result === null) { // 由res.ok检查不过导致
-             setAllData([]); // 未授权或API错误，设置为空数据
         } else {
-             setAllData([]); // 其他意外情况
+          setAllData([]);
         }
       })
       .catch(error => {
-        console.error("获取教师数据过程中发生网络或其它错误:", error);
-        setAllData([]); // 获取失败则设置为空数组
+        console.error("获取学生数据过程中发生网络或其它错误:", error);
+        setAllData([]);
       })
-      .finally(() => setLoading(false)); // 加载结束，设置loading状态为false
-  }, []); // 空依赖数组，此effect仅在组件挂载时运行一次
+      .finally(() => setLoading(false));
+  }, []);
 
   // Memo Hook: 从allData中提取所有不重复的班级名称，用于班级筛选器的选项
   const allClasses = useMemo(() => Array.from(new Set(allData.map(d => d.class))), [allData]);
@@ -154,7 +154,7 @@ export default function HomePage() {
       });
   }, []);
 
-  // 函数: 计算指定日期所有符合筛选条件的教师的空闲时间
+  // 函数: 计算指定日期所有符合筛选条件的学生的空闲时间
   function getFreeTimeForDay(date: Date) {
     const weekday = date.getDay() === 0 ? 7 : date.getDay();
     let filteredData = allData.filter(row =>
