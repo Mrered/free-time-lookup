@@ -151,6 +151,10 @@ export default function HomePage() {
         const freePeriods = getTheoryFreeTime(row.periods);
         return { name: row.name, free: freePeriods };
       } else {
+        // 实训班：周六/日直接无空闲
+        if (weekday === 6 || weekday === 7) {
+          return { name: row.name, free: [] };
+        }
         if (row.weekType !== null && row.weekType !== weekType) return null;
         const freeTimeBlocks = getTrainingFreeTime(row.timeBlocks);
         return { name: row.name, free: freeTimeBlocks };

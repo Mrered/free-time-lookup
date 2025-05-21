@@ -1,12 +1,12 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { Layout, Menu, message as antdMessage, Modal, Form, Input, Switch, Select, Button as AntdButton } from "antd";
+import { Layout, Menu, message as antdMessage, Modal, Form, Input, Switch, Select, Button as AntdButton, Tooltip } from "antd";
 import UploadPanel from "../components/UploadPanel"; // 调整路径
 import ManagePanel from "../components/ManagePanel"; // 调整路径
 import UserMenu from "../components/UserMenu";     // 调整路径
-import { MenuOutlined, UndoOutlined, RedoOutlined, DownloadOutlined, HomeOutlined, CloudUploadOutlined, DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
-import { Drawer } from "antd";
+import { UndoOutlined, RedoOutlined, DownloadOutlined, HomeOutlined, CloudUploadOutlined, DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
+// PlusOutlined is now primarily used within ManagePanel, can be removed if not used elsewhere in ConsolePage
 
 const { Sider, Content } = Layout;
 
@@ -57,7 +57,7 @@ const TAB_KEYS = [
 ];
 
 export default function ConsolePage() {
-  const [selectedKey, setSelectedKey] = useState("upload");
+  const [selectedKey, setSelectedKey] = useState("manage"); // Default to manage for easier testing
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [data, setData] = useState<DataRow[]>([]);
@@ -65,7 +65,7 @@ export default function ConsolePage() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [loading, setLoading] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // const [drawerOpen, setDrawerOpen] = useState(false); // Not used in current context
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<DataRow | null>(null);
@@ -73,11 +73,14 @@ export default function ConsolePage() {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [semesterInfo, setSemesterInfo] = useState<any>(null);
   const [semesterLoading, setSemesterLoading] = useState(false);
   const [semesterForm] = Form.useForm();
   const [holidays, setHolidays] = useState<{ name: string, start: string, end: string }[]>([]);
+  const [searchName, setSearchName] = useState(""); // Used as searchValue for ManagePanel
+  // Backup related states are now primarily managed within ManagePanel, but ConsolePage might need to know for other purposes if any.
+  // For now, we assume ManagePanel handles its own backup display and actions.
 
   useEffect(() => {
     const handleResize = () => setIsNarrow(window.innerWidth < 768);
@@ -156,22 +159,20 @@ export default function ConsolePage() {
           setHistory(parsedHistory);
           setHistoryIndex(parsedIndex);
           setData(JSON.parse(JSON.stringify(parsedHistory[parsedIndex])));
-        } else if (parsedHistory.length === 0) { // If saved history is an empty array
+        } else if (parsedHistory.length === 0) {
             setHistory([[]]);
             setHistoryIndex(0);
             setData([]);
         }
-      } else { // No history in session, fetch initial data
+      } else {
         fetchData();
       }
-    } catch (e) { console.error('恢复临时历史失败:', e); fetchData(); /* Fallback to fetch if session restore fails */ }
+    } catch (e) { console.error('恢复临时历史失败:', e); fetchData(); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
+  }, []);
 
   const fetchData = async () => {
-    // This function is now primarily for initial load if session history is empty or fails
     if (historyIndex !== -1 && history.length > 0 && !(history.length === 1 && history[0].length === 0) ) {
-        // Data already loaded from session history, no need to fetch unless explicitly desired
         console.log("Data/history already loaded from session storage.");
         return;
     }
@@ -183,7 +184,7 @@ export default function ConsolePage() {
       if (Array.isArray(result.value)) fetchedData = result.value;
       else if (typeof result.value === "string") try { fetchedData = JSON.parse(result.value); } catch (e) { console.error("解析获取数据失败:",e); }
       setData(fetchedData);
-      if (historyIndex === -1 || (history.length === 1 && history[0].length === 0) ) { // Only initialize history if not already set from session
+      if (historyIndex === -1 || (history.length === 1 && history[0].length === 0) ) {
         const initialHistory = [JSON.parse(JSON.stringify(fetchedData.length > 0 ? fetchedData: []))];
         setHistory(initialHistory);
         setHistoryIndex(0);
@@ -192,16 +193,13 @@ export default function ConsolePage() {
       }
     } catch (err) {
       console.error("获取数据失败:", err); setData([]);
-      if (historyIndex === -1) { // If fetch fails and no session history, init empty history
+      if (historyIndex === -1) {
          setHistory([[]]); setHistoryIndex(0);
          sessionStorage.setItem('temp_history', JSON.stringify([[]]));
          sessionStorage.setItem('temp_history_index', '0');
       }
     } finally { setLoading(false); }
   };
-
-  // Removed the useEffect that calls fetchData based on historyIndex,
-  // as fetchData is now called within the session restoration useEffect if needed.
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -312,7 +310,7 @@ export default function ConsolePage() {
     const onMouseUp = () => { if(isDragging&&startCell&&currentCell&&dragMode){ const cells = getSelectedCellsInDrag(); let arr = value?[...value]:[]; if(dragMode==='select')cells.forEach(k=>{const [w,p]=k.split('-').map(Number);if(!selected.has(k))arr.push([w,p]);}); else arr=arr.filter(([w,p])=>!cells.has(`${w}-${p}`)); onChange?.(arr);} setIsDragging(false);setStartCell(null);setCurrentCell(null);setDragMode(null);};
     const getStyle = (w:number,p:number) => {const k=`${w}-${p}`;const sel=selected.has(k); if(isDragging){const cells=getSelectedCellsInDrag();const inDrag=cells.has(k); if(inDrag)return dragMode==='select'?(sel?'bg-blue-500 text-white':'bg-blue-300 text-white'):(sel?'bg-red-300 text-white':'bg-gray-100');} return sel?'bg-blue-500 text-white':'bg-gray-100';};
     const prevent = (e:React.MouseEvent)=>{e.preventDefault();e.stopPropagation();};
-    useEffect(()=>{if(isDragging){const up=()=>onMouseUp(); window.addEventListener('mouseup',up);window.addEventListener('mouseleave',up); return ()=>{window.removeEventListener('mouseup',up);window.removeEventListener('mouseleave',up);}};},[isDragging,value,onMouseUp]);
+    useEffect(()=>{if(isDragging){const up=()=>onMouseUp(); window.addEventListener('mouseup',up);window.addEventListener('mouseleave',up); return ()=>{window.removeEventListener('mouseup',up);window.removeEventListener('mouseleave',up);}};},[isDragging,value,onMouseUp]); // onMouseUp was missing from dependency array
     return (<div style={{overflowX:'auto'}} onMouseLeave={onMouseUp}><div className="text-xs text-gray-500 mb-1">提示：拖动选择</div><table className="border text-center select-none w-full" onMouseUp={onMouseUp}><thead><tr><th></th>{WEEKDAYS.map(w=><th key={w}>周{['一','二','三','四','五'][w-1]}</th>)}</tr></thead><tbody>{PERIODS.map(p=>(<tr key={p}><td className="font-bold">{p}节</td>{WEEKDAYS.map(w=>{const sel=selected.has(`${w}-${p}`);const st=getStyle(w,p);return(<td key={w} className="p-1" onMouseDown={prevent}><button type="button" className={`w-7 h-7 rounded ${st} border border-blue-200 focus:outline-none transition-colors`} onMouseDown={e=>{prevent(e);onMouseDown(w,p,sel);}} onMouseMove={()=>onMouseMove(w,p)} onMouseUp={onMouseUp}>{sel&&!isDragging?'✔':''}</button></td>);})}</tr>))}</tbody></table></div>);
   }
 
@@ -326,7 +324,7 @@ export default function ConsolePage() {
     const onMouseUp=()=>{if(drag&&start&&curr&&mode){const cells=getCellsInDrag();let newVal=[...(value||[])]; if(mode==='select')cells.forEach(k=>{const [lbl,c]=k.split('-');const ftb=getFullTimeBlock(c);if(ftb&&!selMap.has(k)){newVal.push([wtMap[lbl],ftb]);}}); else newVal=newVal.filter(([wt,tb])=>{const c=getTimeBlockCode(tb);if(!c)return true; return !cells.has(`${wt?"单周":"双周"}-${c}`);}); onChange?.(newVal);} setDrag(false);setStart(null);setCurr(null);setMode(null);};
     const getStyle=(lbl:string,code:string)=>{const k=`${lbl}-${code}`;const sel=selMap.has(k);if(drag){const cells=getCellsInDrag();const inDrag=cells.has(k);if(inDrag)return mode==='select'?(sel?'bg-blue-500 text-white':'bg-blue-300 text-white'):(sel?'bg-red-300 text-white':'bg-gray-100');} return sel?'bg-blue-500 text-white':'bg-gray-100';};
     const prevent=(e:React.MouseEvent)=>{e.preventDefault();e.stopPropagation();};
-    useEffect(()=>{if(drag){const up=()=>onMouseUp();window.addEventListener('mouseup',up);window.addEventListener('mouseleave',up);return ()=>{window.removeEventListener('mouseup',up);window.removeEventListener('mouseleave',up);}}; },[drag,value,onMouseUp]);
+    useEffect(()=>{if(drag){const up=()=>onMouseUp();window.addEventListener('mouseup',up);window.addEventListener('mouseleave',up);return ()=>{window.removeEventListener('mouseup',up);window.removeEventListener('mouseleave',up);}}; },[drag,value,onMouseUp]); // onMouseUp was missing
     return(<div style={{overflowX:'auto'}} onMouseLeave={onMouseUp}><div className="text-xs text-gray-500 mb-1">提示：拖动选择</div><table className="border text-center select-none w-full" onMouseUp={onMouseUp}><thead><tr><th></th>{codes.map(c=><th key={c}>{getFullTimeBlock(c)}</th>)}</tr></thead><tbody>{lbls.map(lbl=>(<tr key={lbl}><td className="font-bold">{lbl}</td>{codes.map(c=>{const sel=selMap.has(`${lbl}-${c}`);const st=getStyle(lbl,c); return(<td key={c} className="p-1" onMouseDown={prevent}><button type="button" className={`w-24 h-7 rounded ${st} border text-xs`} onMouseDown={e=>{prevent(e);onMouseDown(lbl,c,sel);}} onMouseMove={()=>onMouseMove(lbl,c)} onMouseUp={onMouseUp}>{sel&&!drag?'✓':''}</button></td>);})}</tr>))}</tbody></table></div>);
   }
 
@@ -349,18 +347,7 @@ export default function ConsolePage() {
   };
 
   const handleDataChangeFromManagePanel = (newDataFP: DataRow[]) => { setData(newDataFP); addHistory(newDataFP); antdMessage.success("数据已从备份恢复!"); };
-  const commonHistoryButtons = (
-    <div className="flex items-center space-x-2">
-      <div className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs flex items-center" style={{height: 40}}>
-        <span className="hidden sm:inline">历史:</span>{historyIndex+1}/{history.length>0?history.length:1}
-      </div>
-      <AntdButton type="default" icon={<UndoOutlined/>} onClick={handleUndo} disabled={historyIndex<=0} size="large" style={{height: 40, fontSize: 14}}/>
-      <AntdButton type="default" icon={<RedoOutlined/>} onClick={handleRedo} disabled={historyIndex>=history.length-1} size="large" style={{height: 40, fontSize: 14}}/>
-      <AntdButton icon={<DownloadOutlined/>} onClick={downloadAsExcel} disabled={data.length===0} size="large" style={{height: 40, fontSize: 14}} title="导出"/>
-    </div>
-  );
 
-  // 获取学期信息
   const fetchSemesterInfo = async () => {
     setSemesterLoading(true);
     try {
@@ -379,9 +366,8 @@ export default function ConsolePage() {
   };
   useEffect(() => {
     if (selectedKey === "semester") fetchSemesterInfo();
-  }, [selectedKey]);
+  }, [selectedKey, semesterForm]);
 
-  // 保存学期信息
   const handleSemesterSave = async () => {
     try {
       const values = await semesterForm.validateFields();
@@ -398,7 +384,6 @@ export default function ConsolePage() {
       antdMessage.error("请检查表单内容");
     }
   };
-  // 节假日操作
   const handleAddHoliday = () => setHolidays([...holidays, { name: "", start: "", end: "" }]);
   const handleHolidayChange = (idx: number, field: string, value: string) => {
     const newHolidays = holidays.map((h, i) => i === idx ? { ...h, [field]: value } : h);
@@ -414,6 +399,19 @@ export default function ConsolePage() {
     }
   };
 
+  const filteredData = useMemo(() => {
+    if (!searchName.trim()) return data;
+    return data.filter(row => row.name.includes(searchName.trim()));
+  }, [data, searchName]);
+
+  // Construct history buttons to pass to ManagePanel
+  const historyButtonsProp = (
+    <>
+      <AntdButton icon={<UndoOutlined />} onClick={handleUndo} disabled={historyIndex <= 0} size="large" title="撤销" />
+      <AntdButton icon={<RedoOutlined />} onClick={handleRedo} disabled={historyIndex >= history.length - 1} size="large" title="恢复" />
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
@@ -421,51 +419,87 @@ export default function ConsolePage() {
         collapsed={isNarrow}
         onCollapse={setIsNarrow}
         width={isNarrow ? 60 : 200}
-        style={{ background: '#fff', display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative' }}
+        style={{
+          background: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          padding: 0,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 10
+        }}
         trigger={null}
       >
-        <Menu
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          onClick={handleMenuClick}
-          items={TAB_KEYS}
-          className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-160px)]"
-        />
-        <div
-          className="py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"
-          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-        >
-          <UserMenu />
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            onClick={handleMenuClick}
+            items={TAB_KEYS}
+            style={{ flex: 1, minHeight: 0 }}
+            className="border-r-0 text-base overflow-y-auto"
+          />
+          <div className="py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]">
+            <UserMenu />
+          </div>
         </div>
       </Sider>
-      <Layout><Content className="p-8 bg-slate-50 rounded-2xl shadow-lg min-h-[600px] my-8 mx-8">
-        {selectedKey === "upload" && <UploadPanel uploading={uploading} message={message} onFileChange={handleFileChange} onClear={handleClear} historyButtons={commonHistoryButtons}/>} 
-        {selectedKey === "manage" && <ManagePanel data={data} loading={loading} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onDataChange={handleDataChangeFromManagePanel} editModalOpen={editModalOpen} editRow={editRow} onEditModalClose={handleEditCancel} onEditSave={handleEditSaveSingle} form={editForm} historyButtons={commonHistoryButtons} page={page} pageSize={pageSize} setPage={setPage}/>} 
-        {selectedKey === "semester" && (
-          <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-8">
-            <div className="text-2xl font-bold mb-4 text-blue-700">学期设置</div>
-            <Form form={semesterForm} layout="vertical" initialValues={semesterInfo || {}}>
-              <Form.Item name="year" label="学年" rules={[{ required: true, message: '请输入学年' }]}><Input placeholder="如 2024" /></Form.Item>
-              <Form.Item name="semester" label="学期" rules={[{ required: true, message: '请输入学期' }]}><Select placeholder="请选择"><Select.Option value="春季">春季</Select.Option><Select.Option value="秋季">秋季</Select.Option></Select></Form.Item>
-              <Form.Item name="firstMonday" label="第一周周一日期" rules={[{ required: true, message: '请选择日期' }]}><Input type="date" /></Form.Item>
-              <div className="mt-6 mb-2 font-semibold text-blue-600">法定节假日</div>
-              {holidays.map((h, idx) => (
-                <div key={idx} className="flex gap-2 mb-2 items-center">
-                  <Input style={{ width: 120 }} placeholder="节假日名称" value={h.name} onChange={e => handleHolidayChange(idx, 'name', e.target.value)} />
-                  <Input type="date" style={{ width: 140 }} value={h.start} onChange={e => handleHolidayChange(idx, 'start', e.target.value)} />
-                  <span>至</span>
-                  <Input type="date" style={{ width: 140 }} value={h.end} onChange={e => handleHolidayChange(idx, 'end', e.target.value)} />
-                  <AntdButton danger type="text" onClick={() => handleDeleteHoliday(idx)}>删除</AntdButton>
+      <Layout style={{ marginLeft: isNarrow ? 60 : 200 }}>
+        <Content className="p-4 sm:p-8 bg-slate-50 rounded-lg sm:rounded-2xl shadow-lg min-h-[calc(100vh-4rem)] sm:min-h-[600px] my-4 sm:my-8 mx-4 sm:mx-8">
+          {/* The control bar is now handled by ManagePanel itself */}
+          {selectedKey === "upload" && <UploadPanel uploading={uploading} message={message} onFileChange={handleFileChange} onClear={handleClear} />}
+          {selectedKey === "manage" && (
+            <ManagePanel
+              data={filteredData}
+              loading={loading}
+              onAdd={handleAdd}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onDataChange={handleDataChangeFromManagePanel} // For backup restore
+              editModalOpen={editModalOpen}
+              editRow={editRow}
+              onEditModalClose={handleEditCancel}
+              onEditSave={handleEditSaveSingle}
+              form={editForm} // This is the editForm for the edit modal
+              historyButtons={historyButtonsProp} // Pass the Undo/Redo buttons
+              page={page}
+              pageSize={pageSize}
+              setPage={setPage}
+              setPageSize={setPageSize}
+              searchValue={searchName}
+              onSearchChange={setSearchName}
+              onDownload={downloadAsExcel}
+              isDownloadDisabled={data.length === 0}
+            />
+          )}
+          {selectedKey === "semester" && (
+            <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-8">
+              <div className="text-2xl font-bold mb-4 text-blue-700">学期设置</div>
+              <Form form={semesterForm} layout="vertical" initialValues={semesterInfo || {}}>
+                <Form.Item name="year" label="学年" rules={[{ required: true, message: '请输入学年' }]}><Input placeholder="如 2024" /></Form.Item>
+                <Form.Item name="semester" label="学期" rules={[{ required: true, message: '请输入学期' }]}><Select placeholder="请选择"><Select.Option value="春季">春季</Select.Option><Select.Option value="秋季">秋季</Select.Option></Select></Form.Item>
+                <Form.Item name="firstMonday" label="第一周周一日期" rules={[{ required: true, message: '请选择日期' }]}><Input type="date" /></Form.Item>
+                <div className="mt-6 mb-2 font-semibold text-blue-600">法定节假日</div>
+                {holidays.map((h, idx) => (
+                  <div key={idx} className="flex gap-2 mb-2 items-center flex-wrap">
+                    <Input style={{ width: 120, minWidth: 100, flexGrow:1 }} placeholder="节假日名称" value={h.name} onChange={e => handleHolidayChange(idx, 'name', e.target.value)} />
+                    <Input type="date" style={{ width: 140, minWidth: 120, flexGrow:1 }} value={h.start} onChange={e => handleHolidayChange(idx, 'start', e.target.value)} />
+                    <span className="mx-1">至</span>
+                    <Input type="date" style={{ width: 140, minWidth: 120, flexGrow:1 }} value={h.end} onChange={e => handleHolidayChange(idx, 'end', e.target.value)} />
+                    <AntdButton danger type="text" onClick={() => handleDeleteHoliday(idx)}>删除</AntdButton>
+                  </div>
+                ))}
+                <AntdButton type="dashed" onClick={handleAddHoliday} className="mb-4 w-full sm:w-auto">添加节假日</AntdButton>
+                <div className="mt-6">
+                  <AntdButton type="primary" onClick={handleSemesterSave} loading={semesterLoading}>保存设置</AntdButton>
                 </div>
-              ))}
-              <AntdButton type="dashed" onClick={handleAddHoliday} className="mb-4">添加节假日</AntdButton>
-              <div className="mt-6">
-                <AntdButton type="primary" onClick={handleSemesterSave} loading={semesterLoading}>保存设置</AntdButton>
-              </div>
-            </Form>
-          </div>
-        )}
-      </Content></Layout>
+              </Form>
+            </div>
+          )}
+        </Content>
+      </Layout>
       <Modal open={addModalOpen} onCancel={handleAddCancel} onOk={handleAddSave} title="批量新增" width={600} destroyOnClose><Form form={form} layout="vertical" initialValues={{isTheory:false}}><Form.Item name="name" label="姓名" rules={[{required:true}]}><Input placeholder="学生姓名"/></Form.Item><Form.Item name="class" label="班级" rules={[{required:true}]}><Input placeholder="班级名称"/></Form.Item><Form.Item name="isTheory" label="课程类型" valuePropName="checked"><Switch checkedChildren="理论" unCheckedChildren="实训" onChange={handleTheorySwitch}/></Form.Item>{form.getFieldValue('isTheory')?(<div className="bg-blue-50 p-4 rounded mb-4"><div className="text-blue-700 font-semibold mb-2">理论课</div><p className="text-sm mb-2">按星期分组创建记录</p><Form.Item label="星期+节次" name="weekPeriod" rules={[{validator:async()=>(weekPeriod.length>0?Promise.resolve():Promise.reject('选星期+节次'))}]}><WeekPeriodTable value={weekPeriod} onChange={setWeekPeriod}/></Form.Item></div>):(<div className="bg-green-50 p-4 rounded mb-4"><div className="text-green-700 font-semibold mb-2">实训课</div><p className="text-sm mb-2">按单双周分组创建记录</p><Form.Item label="单双周+时段" name="weekTypeTimeBlock" rules={[{validator:async()=>(weekTypeTimeBlock.length>0?Promise.resolve():Promise.reject('选单双周+时段'))}]}><WeekTypeTimeBlockTable value={weekTypeTimeBlock} onChange={setWeekTypeTimeBlock}/></Form.Item></div>)}<div className="mt-4 pt-4 border-t"><div className="text-gray-500 text-sm">注: 新数据添加在列表顶部</div></div></Form></Modal>
       <Modal open={editModalOpen} onCancel={handleEditCancel} onOk={handleEditSaveSingle} title="编辑" width={450} destroyOnClose><Form form={editForm} layout="vertical"><Form.Item name="name" label="姓名"><Input disabled/></Form.Item><Form.Item name="class" label="班级"><Input disabled/></Form.Item><Form.Item label="类型"><Input value={editRow?.isTheory?'理论':'实训'} disabled/></Form.Item>{editRow?.isTheory?(<><Form.Item label="星期"><Input value={editRow?`周${['一','二','三','四','五'][editRow.weekday-1]}`:''} disabled/></Form.Item><Form.Item name="periods" label="节次" rules={[{required:true}]}><Select mode="multiple" placeholder="选节次" allowClear className="w-full">{PERIODS.map(p=><Select.Option key={p} value={p}>{p}节</Select.Option>)}</Select></Form.Item></>):(<><Form.Item label="周类型"><Input value={editRow?.weekType===true?'单周':(editRow?.weekType===false?'双周':'未定')} disabled/></Form.Item><Form.Item name="timeBlocks" label="时间段" rules={[{required:true}]}><Select mode="multiple" placeholder="选时间段" allowClear className="w-full">{TIME_BLOCKS.map(tb=><Select.Option key={tb} value={tb}>{tb}</Select.Option>)}</Select></Form.Item></>)}<div className="mt-4 pt-4 border-t"><div className="text-gray-500 text-sm">注:仅修改节次/时段</div></div></Form></Modal>
     </Layout>

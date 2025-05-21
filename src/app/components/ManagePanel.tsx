@@ -1,7 +1,7 @@
-import { Table, Button, Popconfirm, Pagination, Tag, message } from "antd";
+import { Table, Button, Popconfirm, Pagination, Tag, message, Input, Tooltip } from "antd"; // Added Input, Tooltip
 import type { ColumnsType } from "antd/es/table";
 import type { FormInstance } from "antd/es/form";
-import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, DownloadOutlined } from "@ant-design/icons"; // Added DownloadOutlined
 import { useEffect, useState, ReactNode } from "react";
 
 interface DataRow {
@@ -16,25 +16,31 @@ interface DataRow {
 
 interface ManagePanelProps {
   data: DataRow[];
-  loading: boolean; // General loading for the table (e.g., initial load)
+  loading: boolean;
   onAdd: () => void;
   onEdit: (idx: number) => void;
-  onDelete: (idx: number) => void;
-  onDataChange: (newData: DataRow[]) => void; // Callback to update parent's data after restore
+  onDelete: (idx: number) => Promise<void>;
+  onDataChange: (newData: DataRow[]) => void;
   editModalOpen: boolean;
   editRow: DataRow | null;
   onEditModalClose: () => void;
   onEditSave: () => void;
   form: FormInstance;
-  historyButtons?: ReactNode;
+  historyButtons?: ReactNode; // Re-added historyButtons prop
   page: number;
   pageSize: number;
   setPage: (page: number) => void;
+  setPageSize?: (size: number) => void;
+  // New props for search and download
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  onDownload: () => void;
+  isDownloadDisabled?: boolean;
 }
 
 export default function ManagePanel({
   data,
-  loading, // This is general table loading, not for the restore button specifically anymore
+  loading,
   onAdd,
   onEdit,
   onDelete,
@@ -44,10 +50,15 @@ export default function ManagePanel({
   onEditModalClose,
   onEditSave,
   form,
-  historyButtons,
+  historyButtons, // Added back
   page,
   pageSize,
-  setPage
+  setPage,
+  setPageSize,
+  searchValue,
+  onSearchChange,
+  onDownload,
+  isDownloadDisabled
 }: ManagePanelProps) {
   const [isNarrow, setIsNarrow] = useState(false);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -57,7 +68,7 @@ export default function ManagePanel({
     formattedTime: null
   });
   const [checkingBackup, setCheckingBackup] = useState(false);
-  const [isRestoringBackup, setIsRestoringBackup] = useState(false); // Specific loading state for restore
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsNarrow(window.innerWidth < 768);
@@ -66,7 +77,6 @@ export default function ManagePanel({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Function to check backup status
   const fetchBackupStatus = async () => {
     try {
       setCheckingBackup(true);
@@ -84,20 +94,19 @@ export default function ManagePanel({
       }
     } catch (err) {
       console.error("检查备份状态失败 (Network/Fetch Error):", err);
-      setBackupInfo({ hasBackup: false, formattedTime: null }); // Ensure backup info is reset on error
+      setBackupInfo({ hasBackup: false, formattedTime: null });
     } finally {
       setCheckingBackup(false);
     }
   };
 
-  // 检查备份状态 on mount and when data changes (e.g., after a successful restore)
   useEffect(() => {
     fetchBackupStatus();
-  }, [data]); // Re-check when data prop changes
+  }, [data]);
 
   const handleRestoreBackup = async () => {
     if (!backupInfo.hasBackup || checkingBackup || isRestoringBackup) {
-      return; // Prevent multiple clicks or clicks when no backup
+      return;
     }
     setIsRestoringBackup(true);
     try {
@@ -107,14 +116,11 @@ export default function ManagePanel({
         headers: {
           'Content-Type': 'application/json',
         },
-        // No body is typically needed for this kind of PATCH if the server knows what to restore.
       });
       const result = await res.json();
       if (res.ok && result.value) {
-        onDataChange(result.value as DataRow[]); // Notify parent to update data
+        onDataChange(result.value as DataRow[]);
         message.success(result.message || "备份恢复成功！");
-        // After data changes via onDataChange, the useEffect depending on 'data'
-        // will call fetchBackupStatus() again to update backup info.
       } else {
         message.error(result.message || "恢复备份失败。");
         console.error("恢复备份失败 (API Error):", result);
@@ -127,49 +133,18 @@ export default function ManagePanel({
     }
   };
 
-  const restoreBackupButtonSmall = (
-    <Button
-      onClick={handleRestoreBackup}
-      icon={<ReloadOutlined />}
-      loading={isRestoringBackup} // Use specific loading state
-      disabled={!backupInfo.hasBackup || checkingBackup || isRestoringBackup}
-      title={backupInfo.hasBackup ? `恢复${backupInfo.formattedTime || '上次'}的备份` : (checkingBackup ? '正在检查备份...' : '暂无可用备份')}
-    >
-      恢复备份
-      {backupInfo.hasBackup && !checkingBackup && <span className="text-xs text-green-500 ml-1">✓</span>}
-    </Button>
-  );
-
-  const restoreBackupButtonLarge = (
-    <div className="flex flex-col">
-      <Button
-        onClick={handleRestoreBackup}
-        icon={<ReloadOutlined />}
-        loading={isRestoringBackup} // Use specific loading state
-        disabled={!backupInfo.hasBackup || checkingBackup || isRestoringBackup}
-        title={backupInfo.hasBackup ? `恢复${backupInfo.formattedTime || '上次'}的备份` : (checkingBackup ? '正在检查备份...' : '暂无可用备份')}
-      >
-        {backupInfo.hasBackup ? `恢复备份 (${backupInfo.formattedTime?.split(' ')[1] || '有备份'})` : (checkingBackup ? '检查中...' : '暂无备份')}
-        {backupInfo.hasBackup && !checkingBackup && <span className="text-xs text-green-500 ml-1">✓</span>}
-      </Button>
-      <div className="text-xs text-gray-500 mt-1">数据修改将在浏览器关闭时自动保存</div>
-    </div>
-  );
-
   const columns: ColumnsType<DataRow> = [
     { title: "姓名", dataIndex: "name", key: "name", align: "center" },
     { title: "班级", dataIndex: "class", key: "class", align: "center" },
     { title: "单双周/星期", dataIndex: "weekday", key: "weekday", align: "center", render: (_, record: DataRow) => {
-      // Ensure weekMap is defined here if used, or use record.weekday directly for numbers.
       const weekMap = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-      let textToShow: ReactNode = weekMap[record.weekday] || record.weekday.toString(); // Default to number if not in map
+      let textToShow: ReactNode = weekMap[record.weekday] || record.weekday.toString();
 
       if (record.weekType === true) {
         return <Tag color="purple" className="px-2 py-1 text-xs">单周</Tag>;
       } else if (record.weekType === false) {
         return <Tag color="orange" className="px-2 py-1 text-xs">双周</Tag>;
       } else {
-         // If weekType is null, show weekday number or mapped string
         return <span>{textToShow}</span>;
       }
     }},
@@ -196,17 +171,7 @@ export default function ManagePanel({
       key: "action",
       align: "center",
       render: (_, record, idx) => {
-        // Calculate globalIdx based on current page and pageSize for correct editing/deleting
-        // This logic for globalIdx might need adjustment if 'data' itself is already paginated when passed to ManagePanel
-        // Assuming 'data' is the full dataset and pagination is handled by AntD Table or locally for narrow view.
-        // The current findIndex is okay if 'data' is the full dataset.
-        const globalIdx = data.findIndex(item => item === record); // This is okay if 'data' is the full set.
-                                                                     // If 'data' is already paged, this index is relative to the paged data.
-                                                                     // For onEdit/onDelete, you need the index relative to the *original full data source*.
-                                                                     // Let's assume parent handles mapping paged index to full data index if needed,
-                                                                     // or `data` prop is always the full dataset.
-                                                                     // The original code seems to assume `data` is the full list.
-
+        const globalIdx = data.findIndex(item => item === record);
         return (
           <span>
             <Button
@@ -214,9 +179,6 @@ export default function ManagePanel({
               size="small"
               style={{ marginRight: 8 }}
               onClick={() => {
-                // If `data` is the full dataset, `globalIdx` from findIndex is correct.
-                // If `data` is a slice (paged data), then `(page - 1) * pageSize + idx` (from local map) is better.
-                // Let's use the original logic, assuming `data` is the full set as `Table` dataSource.
                 onEdit(globalIdx);
               }}
             >编辑</Button>
@@ -236,34 +198,74 @@ export default function ManagePanel({
     }
   ];
 
+  // Common controls for both narrow and wide views
+  const controlBar = (
+    <div className={`flex mb-6 items-center gap-x-3 ${isNarrow ? 'flex-col gap-y-3' : 'flex-row'}`}>
+      {/* Left Group: Add Button */}
+      <Button type="primary" icon={<PlusOutlined />} onClick={onAdd} size="large" className={isNarrow ? 'w-full sm:w-auto' : ''}>
+        新增
+      </Button>
+      
+      {/* History Buttons (Undo/Redo) */}
+      {historyButtons && <div className={`flex items-center gap-x-2 ${isNarrow ? 'w-full justify-around sm:w-auto' : ''}`}>{historyButtons}</div>}
+
+      {/* Middle Group: Search (flexible width) */}
+      <Input
+        placeholder="输入姓名进行检索"
+        value={searchValue}
+        onChange={(e) => onSearchChange(e.target.value)}
+        allowClear
+        size="large"
+        className="flex-grow" // Takes available space
+        style={{ minWidth: isNarrow ? 'none' : 200 }} // Ensure minimum width in wide view
+      />
+
+      {/* Download Button */}
+      <Button 
+        icon={<DownloadOutlined />} 
+        onClick={onDownload} 
+        disabled={isDownloadDisabled} 
+        size="large"
+        className={isNarrow ? 'w-full sm:w-auto' : ''}
+      >
+        导出
+      </Button>
+
+      {/* Right Group: Restore Backup Button with Tooltip */}
+      <Tooltip title="数据修改将在浏览器关闭时自动保存" placement="top">
+        <Button
+          onClick={handleRestoreBackup}
+          icon={<ReloadOutlined />}
+          loading={isRestoringBackup}
+          disabled={!backupInfo.hasBackup || checkingBackup || isRestoringBackup}
+          size="large"
+          className={isNarrow ? 'w-full sm:w-auto' : ''}
+          title={backupInfo.hasBackup ? `恢复${backupInfo.formattedTime || '上次'}的备份` : (checkingBackup ? '正在检查备份...' : '暂无可用备份')}
+        >
+          {backupInfo.hasBackup ? `恢复备份 (${backupInfo.formattedTime?.split(' ')[1] || ''})` : (checkingBackup ? '检查中...' : '暂无备份')}
+          {backupInfo.hasBackup && !checkingBackup && <span className="text-xs text-green-500 ml-1">✓</span>}
+        </Button>
+      </Tooltip>
+    </div>
+  );
+
+
   if (isNarrow) {
     const pagedData = data.slice((page - 1) * pageSize, page * pageSize);
     return (
       <div className="w-full flex flex-col gap-4">
-        <div className="flex flex-row gap-2 mb-4 items-center justify-between">
-          <div className="flex flex-row gap-2">
-            <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
-            {restoreBackupButtonSmall}
-          </div>
-          {historyButtons && <div>{historyButtons}</div>}
-        </div>
-        <div className="text-xs text-gray-500 mb-2">数据修改将在浏览器关闭时自动保存</div>
-        {loading ? <div className="text-center text-gray-400 py-8">加载中...</div> : null} {/* General table loading */}
-        {isRestoringBackup && !loading && <div className="text-center text-blue-500 py-2">正在恢复备份...</div>} {/* Specific restore loading message */}
+        {controlBar} {/* Render the refactored control bar */}
+        
+        {loading ? <div className="text-center text-gray-400 py-8">加载中...</div> : null}
+        {isRestoringBackup && !loading && <div className="text-center text-blue-500 py-2">正在恢复备份...</div>}
 
         {pagedData.map((row, localIdx) => {
-          const globalIdxInData = data.indexOf(row); // Get index from the original full data array
-                                                     // This is more robust if data array can have duplicates conceptually
-                                                     // but for unique rows, (page - 1) * pageSize + localIdx works if data is sorted consistently.
-                                                     // Or better: parent should pass unique keys if possible.
-                                                     // The original used 'data.findIndex(item => item === record)' which is fine.
-                                                     // Here for map, it's 'data.indexOf(row)' or pass a unique key.
-          const cardKey = row.name + '-' + row.class + '-' + row.weekday + '-' + String(row.weekType) + '-' + localIdx;
-
+          const globalIdxInData = data.indexOf(row);
+          const cardKey = `${row.name}-${row.class}-${row.weekday}-${String(row.weekType)}-${row.periods.join('_')}-${row.timeBlocks.join('_')}-${localIdx}`;
 
           return (
             <div
-              key={cardKey} // Ensure a unique key
+              key={cardKey}
               className="relative bg-gradient-to-br from-blue-50 to-white rounded-2xl shadow-lg p-4 flex flex-col gap-2 border border-blue-100 hover:shadow-2xl transition-shadow duration-200 items-stretch"
               style={{ minWidth: 0 }}
               onDoubleClick={() => setActionIdx(globalIdxInData)}
@@ -340,8 +342,7 @@ export default function ManagePanel({
             pageSize={pageSize}
             total={data.length}
             onChange={setPage}
-            showSizeChanger={false} // As per original code
-            // showQuickJumper={true} // Consider adding for better UX with many pages
+            showSizeChanger={false}
             style={{ userSelect: "none" }}
           />
         </div>
@@ -351,23 +352,19 @@ export default function ManagePanel({
 
   return (
     <div className="w-full">
-      <div className="flex flex-row gap-2 mb-6 items-center justify-between">
-        <div className="flex flex-row gap-2 items-start"> {/* items-start for alignment with multiline button */}
-          <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>新增</Button>
-          {restoreBackupButtonLarge}
-        </div>
-        {historyButtons && <div>{historyButtons}</div>}
-      </div>
+      {controlBar} {/* Render the refactored control bar */}
       <Table
         columns={columns}
-        dataSource={data} // Assuming 'data' is the full dataset
-        rowKey={record => record.name + '-' + record.class + '-' + record.weekday + '-' + String(record.weekType) + '-' + (record.periods.join('') || record.timeBlocks.join(''))} // More robust key
-        loading={loading || (isRestoringBackup)} // Show table loading if general loading OR restoring backup
+        dataSource={data}
+        rowKey={record => `${record.name}-${record.class}-${record.weekday}-${String(record.weekType)}-${record.periods.join('_')}-${record.timeBlocks.join('_')}`}
+        loading={loading || (isRestoringBackup)}
         pagination={{
           current: page,
           pageSize: pageSize,
           total: data.length,
           onChange: setPage,
+          onShowSizeChange: (_current, size) => setPageSize && setPageSize(size),
+          showSizeChanger: true,
           locale: { items_per_page: '条/页' },
           style: { marginRight: 24 }
         }}
