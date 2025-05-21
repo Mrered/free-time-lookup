@@ -25,6 +25,19 @@ interface DataRow {
 // API基础URL，从环境变量读取，若未设置则为空字符串
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
+// 新增：判断是否登录的函数（基于auth-token cookie）
+function isLoggedIn() {
+  if (typeof window === 'undefined') return false;
+  return document.cookie.split(';').some(c => c.trim().startsWith('auth-token='));
+}
+
+// 新增：姓名脱敏
+function maskName(name: string) {
+  if (isLoggedIn()) return name;
+  if (!name || name.length < 2) return name;
+  return name[0] + '*' + name.slice(2);
+}
+
 export default function HomePage() {
   const [allData, setAllData] = useState<DataRow[]>([]); // 存储所有教师的原始数据
   const [weekType, setWeekType] = useState<boolean>(true); // 当前选择的周类型：true为单周, false为双周
@@ -146,7 +159,7 @@ export default function HomePage() {
             const eventEndDateTime = currentDate.hour(endHour).minute(endMinute).toDate();
 
             calendarEvents.push({
-              title: item.name, // 事件标题：教师姓名
+              title: maskName(item.name), // 事件标题：教师姓名（脱敏）
               start: eventStartDateTime, // 事件开始时间
               end: eventEndDateTime, // 事件结束时间
               backgroundColor: isHoliday ? "#faad14" : "#52c41a", // 根据是否节假日设置背景色
@@ -208,9 +221,11 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center py-8 px-4">
       <div className="w-full flex justify-end max-w-[96vw] md:max-w-6xl mb-2">
-        <a href="/console" className="text-blue-600 hover:underline font-medium px-3 py-2 rounded-md hover:bg-blue-100 transition-colors">
-          进入控制台
-        </a>
+        {/* {isLoggedIn() && ( */}
+          <a href="/console" className="text-blue-600 hover:underline font-medium px-3 py-2 rounded-md hover:bg-blue-100 transition-colors">
+            进入控制台
+          </a>
+        {/* )} */}
       </div>
       <div className="text-3xl font-bold text-blue-700 mb-6 text-center">兴趣班空余时间日历</div>
       
@@ -287,7 +302,7 @@ export default function HomePage() {
       {/* 事件详情弹窗 */}
       <Modal
         open={!!modalInfo} // 根据modalInfo是否有值来控制弹窗显隐
-        title={<span className="font-semibold text-lg text-blue-700 flex items-center gap-2"><span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>{modalInfo?.title}同学的空闲时段</span>}
+        title={<span className="font-semibold text-lg text-blue-700 flex items-center gap-2"><span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>{maskName(modalInfo?.title)}同学的空闲时段</span>}
         onCancel={() => setModalInfo(null)}
         footer={null}
         bodyStyle={{ background: 'var(--card-bg)', borderRadius: 16, boxShadow: '0 4px 32px #0002', padding: 24 }}

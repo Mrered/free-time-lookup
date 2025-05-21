@@ -180,3 +180,80 @@ body {
     color: #8ca0b3 !important;
   }
 }
+
+/* 日历单元格 hover 圆角柔和，所有视图统一 */
+.fc .fc-daygrid-day,
+.fc .fc-timegrid-col {
+  border-radius: 12px !important;
+  transition: background 0.2s, box-shadow 0.2s, border-radius 0.2s;
+  overflow: hidden;
+}
+.fc .fc-daygrid-day:hover,
+.fc .fc-timegrid-col:hover,
+.fc .fc-daygrid-day-frame:hover,
+.fc .fc-scrollgrid-sync-inner:hover {
+  background: #e0f2fe !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px #1677ff22;
+}
+@media (prefers-color-scheme: dark) {
+  .fc .fc-daygrid-day:hover,
+  .fc .fc-timegrid-col:hover,
+  .fc .fc-daygrid-day-frame:hover,
+  .fc .fc-scrollgrid-sync-inner:hover {
+    background: #22304a !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 8px #4ea1ff33;
+  }
+}
+
+/* FullCalendar 事件主内容美化 */
+.fc-event-main {
+  background: linear-gradient(90deg, #4ea1ff 0%, #1677ff 100%);
+  color: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px #1677ff33;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 10px 16px !important;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s, transform 0.18s cubic-bezier(.4,1.4,.6,1), z-index 0s;
+}
+.fc-event-main:hover {
+  z-index: 10;
+  transform: scale(1.045) translateY(-4px);
+  box-shadow: 0 8px 32px #1677ff44, 0 2px 8px #1677ff33;
+}
+.fc-event-main:active {
+  animation: fc-event-bounce 0.32s cubic-bezier(.34,1.56,.64,1) 1;
+  z-index: 12;
+}
+.fc-event-main > * {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  .fc-event-main {
+    background: linear-gradient(90deg, #22304a 0%, #2a4a6a 100%);
+    color: #e6f6ff !important;
+    box-shadow: 0 2px 8px #4ea1ff33;
+  }
+  .fc-event-main:hover {
+    background: linear-gradient(90deg, #2a4a6a 0%, #22304a 100%);
+    color: #fff !important;
+    box-shadow: 0 4px 16px #4ea1ff44;
+  }
+}
+/* @keyframes fc-event-bounce {
+  0% { transform: scale(1.045) translateY(-4px); }
+  30% { transform: scale(0.97) translateY(2px); }
+  60% { transform: scale(1.03) translateY(-2px); }
+  100% { transform: scale(1.045) translateY(-4px); }
+} */

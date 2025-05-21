@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 // 不需要验证的路径列表
-const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/'];
 
 // 仅在开发环境允许访问的路径
 const DEV_ONLY_PATHS = ['/debug', '/api/debug'];
