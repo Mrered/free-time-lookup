@@ -43,30 +43,7 @@ function logout() {
 // 控制台跳转逻辑
 function handleConsoleClick(e: React.MouseEvent) {
   e.preventDefault();
-  if (isLoggedInClientCheck()) {
     window.location.href = '/console';
-  } else {
-    // 跳转到登录页，登录后回跳console
-    window.location.href = `/login?from=/console`;
-  }
-}
-
-// 姓名脱敏函数
-function maskName(name: string): string {
-  // 如果客户端检查已登录，则显示完整姓名
-  // 注意：这依赖于API已正确验证token并返回了数据
-  if (isLoggedInClientCheck()) {
-    return name;
-  }
-
-  // 如果未登录（或cookie不存在），则进行脱敏
-  if (!name) return ""; // 处理空姓名
-  // 对于单个字的姓名，可以考虑统一显示为 "*" 或保持原样（当前逻辑）
-  // if (name.length === 1) return "*"; // 如果希望单个字也脱敏
-  if (name.length < 2) return name; // 原逻辑：长度小于2的姓名（包括单字）不特别处理，直接返回
-
-  // 原脱敏逻辑：例如 "张三" -> "张*", "李小四" -> "李*四"
-  return name[0] + '*' + name.slice(2);
 }
 
 export default function HomePage() {
@@ -197,7 +174,7 @@ export default function HomePage() {
             const eventEndDateTime = currentDate.hour(endHour).minute(endMinute).toDate();
 
             calendarEvents.push({
-              title: maskName(item.name), // 使用更新后的maskName
+              title: item.name, // 直接用原始姓名
               start: eventStartDateTime,
               end: eventEndDateTime,
               backgroundColor: isHoliday ? "#faad14" : "#52c41a",
@@ -206,7 +183,6 @@ export default function HomePage() {
                 remarks: nextTwoFreeSlots,
                 isHoliday: isHoliday,
                 date: currentDate.format("YYYY-MM-DD"),
-                // 将原始姓名传递给弹窗，弹窗内部决定是否脱敏
                 originalName: item.name
               },
             });
@@ -243,11 +219,10 @@ export default function HomePage() {
     }
 
     setModalInfo({
-      // 弹窗标题处的姓名也应使用maskName，并基于isLoggedInClientCheck
-      title: maskName(clickedEventOriginalName),
+      title: clickedEventOriginalName,
       date: clickInfo.event.extendedProps.date,
       time: `${dayjs(clickInfo.event.start).format("HH:mm")}-${dayjs(clickInfo.event.end).format("HH:mm")}`,
-      remarks: nextArr.length ? nextArr.join('，') : '无', // nextArr is now string[]
+      remarks: nextArr.length ? nextArr.join('，') : '无',
       isHoliday: clickInfo.event.extendedProps.isHoliday,
     });
   }
@@ -341,7 +316,7 @@ export default function HomePage() {
 
       <Modal
         open={!!modalInfo}
-        title={<span className="font-semibold text-lg text-blue-700 flex items-center gap-2"><span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>{modalInfo?.title} {/* modalInfo.title 已经是 maskName 处理过的 */} 同学的空闲时段</span>}
+        title={<span className="font-semibold text-lg text-blue-700 flex items-center gap-2"><span className="inline-block w-2 h-2 rounded-full bg-blue-400"></span>{modalInfo?.title} 同学的空闲时段</span>}
         onCancel={() => setModalInfo(null)}
         footer={null}
         bodyStyle={{ background: 'var(--card-bg)', borderRadius: 16, boxShadow: '0 4px 32px #0002', padding: 24 }}
