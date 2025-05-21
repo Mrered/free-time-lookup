@@ -46,8 +46,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // 如果访问的是公开路径，无需验证
-  if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+  // 只允许根路径公开
+  if (pathname === '/') {
     logInfo("访问公开路径，跳过验证", { pathname });
     return NextResponse.next();
   }
