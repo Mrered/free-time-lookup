@@ -40,14 +40,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url));
   }
   
-  // 如果是通过localhost或127.0.0.1访问，且不是测试模式，无需验证
+  // 如果是通过localhost或127.0.0.1访问，且不是测试模式，无需验证，直接视为已认证
   if ((hostname === 'localhost' || hostname === '127.0.0.1') && !isTestMode) {
-    logInfo("本地访问，跳过验证");
+    logInfo("本地访问，直接视为已认证，放行所有页面和API");
     return NextResponse.next();
   }
   
   // 只允许根路径公开
-  if (pathname === '/' || pathname === '/login' || pathname === '/api/auth/login' || pathname === '/api/public-today' || pathname === '@/utils/redis.ts') {
+  if ((pathname === '/' || pathname === '/login' || pathname === '/api/auth/login' || pathname === '/api/public-today' || pathname === '@/utils/redis.ts') && !isTestMode) {
     logInfo("访问公开路径，跳过验证", { pathname });
     return NextResponse.next();
   }

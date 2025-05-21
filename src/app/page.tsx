@@ -27,9 +27,15 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
 // 客户端检查用户是否"可能"已登录（仅检查cookie是否存在）
 // 真正的认证状态由服务器在API请求时确认
-function isLoggedInClientCheck(): boolean {
-  if (typeof window === 'undefined') return false;
-  return document.cookie.split(';').some(c => c.trim().startsWith('auth-token='));
+async function checkLoginStatus(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/auth/user", { method: "GET", credentials: "include" });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
 }
 
 // 退出登录
@@ -60,47 +66,47 @@ export default function HomePage() {
   // Effect Hook: 组件挂载后获取所有学生数据
   useEffect(() => {
     setLoading(true);
-    // 判断是否登录
-    const isLoggedIn = isLoggedInClientCheck();
-    const url = isLoggedIn ? `${apiUrl}/api/upload-excel` : `${apiUrl}/api/public-today`;
-    fetch(url, { method: "GET" })
-      .then(res => {
-        if (!res.ok) {
-          if (res.status === 401) {
-            console.error("获取学生数据未授权，可能需要重新登录。");
-          } else {
-            console.error(`获取学生数据失败，状态码: ${res.status}`);
+    // 先异步检测登录状态
+    checkLoginStatus().then(isLoggedIn => {
+      const url = isLoggedIn ? `${apiUrl}/api/upload-excel` : `${apiUrl}/api/public-today`;
+      fetch(url, { method: "GET" })
+        .then(res => {
+          if (!res.ok) {
+            if (res.status === 401) {
+              console.error("获取学生数据未授权，可能需要重新登录。");
+            } else {
+              console.error(`获取学生数据失败，状态码: ${res.status}`);
+            }
+            return null;
           }
-          return null;
-        }
-        return res.json();
-      })
-      .then(result => {
-        if (result) {
-          // 登录后接口返回 result.value，未登录接口返回 result.data
-          const data = result.value || result.data;
-          if (Array.isArray(data)) {
-            setAllData(data);
-          } else if (typeof data === "string") {
-            try {
-              setAllData(JSON.parse(data));
-            } catch (error) {
-              console.error("解析获取的学生数据失败 (字符串格式):", error);
+          return res.json();
+        })
+        .then(result => {
+          if (result) {
+            const data = result.value || result.data;
+            if (Array.isArray(data)) {
+              setAllData(data);
+            } else if (typeof data === "string") {
+              try {
+                setAllData(JSON.parse(data));
+              } catch (error) {
+                console.error("解析获取的学生数据失败 (字符串格式):", error);
+                setAllData([]);
+              }
+            } else {
+              console.warn("获取的学生数据格式非预期:", data);
               setAllData([]);
             }
           } else {
-            console.warn("获取的学生数据格式非预期:", data);
             setAllData([]);
           }
-        } else {
+        })
+        .catch(error => {
+          console.error("获取学生数据过程中发生网络或其它错误:", error);
           setAllData([]);
-        }
-      })
-      .catch(error => {
-        console.error("获取学生数据过程中发生网络或其它错误:", error);
-        setAllData([]);
-      })
-      .finally(() => setLoading(false));
+        })
+        .finally(() => setLoading(false));
+    });
   }, []);
 
   // Memo Hook: 从allData中提取所有不重复的班级名称，用于班级筛选器的选项
