@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
   }
   
   // 只允许根路径公开
-  if (pathname === '/') {
+  if (pathname === '/' || pathname === '/login') {
     logInfo("访问公开路径，跳过验证", { pathname });
     return NextResponse.next();
   }
