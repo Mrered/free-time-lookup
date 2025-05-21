@@ -3,6 +3,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --menu-selected-bg: linear-gradient(90deg, #22304a 60%, #2a4a6a 100%);
+  --menu-selected-color: #4ea1ff;
 }
 
 @theme inline {
@@ -14,8 +16,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #10131a;
+    --foreground: #f3f6fa;
+    --card-bg: #181c24;
+    --card-shadow: 0 2px 16px 0 #0006;
+    --primary: #4ea1ff;
+    --primary-bg: #1a2233;
+    --border: #23283a;
+    --menu-selected-bg: linear-gradient(90deg, #22304a 60%, #2a4a6a 100%);
+    --menu-selected-color: #4ea1ff;
+    --danger-bg: #2d1a1a;
+    --danger-color: #ff6b6b;
+    --danger-shadow: 0 2px 12px 0 #ff6b6b33;
   }
 }
 
@@ -44,4 +56,127 @@ body {
     height: 22px !important;
     line-height: 20px !important;
   } */
+}
+
+.ant-menu-item-selected {
+  background: var(--menu-selected-bg, linear-gradient(90deg, var(--primary-bg) 60%, #bae0ff 100%)) !important;
+  color: var(--menu-selected-color, var(--primary)) !important;
+  font-weight: bold;
+  box-shadow: 0 2px 8px #91caff33;
+  border-radius: 8px !important;
+}
+
+/* 危险主按钮（如安全退出）夜间模式美化 */
+.ant-btn-dangerous,
+.ant-btn-dangerous.ant-btn-primary,
+.ant-btn-dangerous.ant-btn-lg {
+  background: var(--danger-bg, #ffeded) !important;
+  color: var(--danger-color, #d32f2f) !important;
+  box-shadow: var(--danger-shadow, 0 2px 8px #ffb4b4) !important;
+  border: none !important;
+}
+.ant-btn-dangerous:hover,
+.ant-btn-dangerous:focus {
+  filter: brightness(1.1);
+  background: #3a2323 !important;
+  color: #ff8787 !important;
+}
+
+/* FullCalendar 现代美化（亮色+暗色） */
+.fc-scrollgrid {
+  border-radius: 18px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 32px #0001, 0 1.5px 0 #e0e7ef;
+  background: var(--fc-bg, #f8fafc);
+  border: none !important;
+}
+.fc-theme-standard th,
+.fc-theme-standard td {
+  border: none !important;
+  background: transparent !important;
+}
+.fc-theme-standard th {
+  background: var(--fc-th-bg, #f4f8fb) !important;
+  color: var(--fc-th-color, #1677ff) !important;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 1px;
+  border-bottom: 1.5px solid #e0e7ef !important;
+}
+.fc-theme-standard td {
+  background: var(--fc-td-bg, #fff) !important;
+  color: var(--fc-td-color, #222) !important;
+  font-size: 15px;
+  transition: background 0.2s;
+}
+.fc-theme-standard td.fc-day-today {
+  background: linear-gradient(90deg, #e6f4ff 60%, #bae0ff 100%) !important;
+  box-shadow: 0 2px 8px #91caff33;
+}
+.fc .fc-daygrid-day-number {
+  font-weight: 600;
+  color: var(--fc-th-color, #1677ff) !important;
+}
+.fc .fc-daygrid-day.fc-day-today {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.fc .fc-timegrid-slot-label {
+  color: #8ca0b3 !important;
+  font-weight: 500;
+  font-size: 14px;
+}
+.fc .fc-timegrid-col.fc-day-today {
+  background: linear-gradient(90deg, #e6f4ff 60%, #bae0ff 100%) !important;
+}
+.fc .fc-timegrid-slot {
+  border-bottom: 1px solid #e0e7ef !important;
+}
+.fc .fc-timegrid-slot.fc-timegrid-slot-lane {
+  background: var(--fc-td-bg, #fff) !important;
+}
+.fc .fc-timegrid-event {
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px #1677ff22;
+  border: none !important;
+}
+.fc .fc-daygrid-event {
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px #1677ff22;
+  border: none !important;
+}
+.fc .fc-daygrid-day-frame {
+  padding: 4px 2px 2px 2px !important;
+}
+.fc .fc-daygrid-day {
+  transition: background 0.2s;
+}
+.fc .fc-daygrid-day:hover, .fc .fc-timegrid-col:hover {
+  background: #e0f2fe !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fc-bg: #181c24;
+    --fc-th-bg: #23283a;
+    --fc-th-color: #4ea1ff;
+    --fc-td-bg: #23283a;
+    --fc-td-color: #e6f6ff;
+  }
+  .fc-scrollgrid {
+    box-shadow: 0 4px 32px #0006, 0 1.5px 0 #23283a;
+  }
+  .fc-theme-standard th {
+    border-bottom: 1.5px solid #23283a !important;
+  }
+  .fc-theme-standard td.fc-day-today, .fc .fc-timegrid-col.fc-day-today {
+    background: linear-gradient(90deg, #1a2233 60%, #22304a 100%) !important;
+    box-shadow: 0 2px 8px #4ea1ff33;
+  }
+  .fc .fc-daygrid-day:hover, .fc .fc-timegrid-col:hover {
+    background: #22304a !important;
+  }
+  .fc .fc-timegrid-slot-label {
+    color: #8ca0b3 !important;
+  }
 }

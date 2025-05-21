@@ -5,7 +5,7 @@ import { Layout, Menu, message as antdMessage, Modal, Form, Input, Switch, Selec
 import UploadPanel from "../components/UploadPanel"; // 调整路径
 import ManagePanel from "../components/ManagePanel"; // 调整路径
 import UserMenu from "../components/UserMenu";     // 调整路径
-import { MenuOutlined, UndoOutlined, RedoOutlined, DownloadOutlined } from "@ant-design/icons";
+import { MenuOutlined, UndoOutlined, RedoOutlined, DownloadOutlined, HomeOutlined, CloudUploadOutlined, DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
 import { Drawer } from "antd";
 
 const { Sider, Content } = Layout;
@@ -50,10 +50,10 @@ interface DataRow {
 }
 
 const TAB_KEYS = [
-  { key: "home", label: "首页" },
-  { key: "upload", label: "数据上传" },
-  { key: "manage", label: "数据管理" },
-  { key: "semester", label: "学期设置" }
+  { key: "home", label: "首页", icon: <HomeOutlined /> },
+  { key: "upload", label: "数据上传", icon: <CloudUploadOutlined /> },
+  { key: "manage", label: "数据管理", icon: <DatabaseOutlined /> },
+  { key: "semester", label: "学期设置", icon: <SettingOutlined /> }
 ];
 
 export default function ConsolePage() {
@@ -349,7 +349,16 @@ export default function ConsolePage() {
   };
 
   const handleDataChangeFromManagePanel = (newDataFP: DataRow[]) => { setData(newDataFP); addHistory(newDataFP); antdMessage.success("数据已从备份恢复!"); };
-  const commonHistoryButtons = (<div className="flex items-center space-x-2"><div className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs flex items-center"><span className="hidden sm:inline">历史:</span>{historyIndex+1}/{history.length>0?history.length:1}</div><AntdButton type="default" icon={<UndoOutlined/>} onClick={handleUndo} disabled={historyIndex<=0} size="small"/><AntdButton type="default" icon={<RedoOutlined/>} onClick={handleRedo} disabled={historyIndex>=history.length-1} size="small"/><AntdButton icon={<DownloadOutlined/>} onClick={downloadAsExcel} disabled={data.length===0} size="small" title="导出"/></div>);
+  const commonHistoryButtons = (
+    <div className="flex items-center space-x-2">
+      <div className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs flex items-center" style={{height: 40}}>
+        <span className="hidden sm:inline">历史:</span>{historyIndex+1}/{history.length>0?history.length:1}
+      </div>
+      <AntdButton type="default" icon={<UndoOutlined/>} onClick={handleUndo} disabled={historyIndex<=0} size="large" style={{height: 40, fontSize: 14}}/>
+      <AntdButton type="default" icon={<RedoOutlined/>} onClick={handleRedo} disabled={historyIndex>=history.length-1} size="large" style={{height: 40, fontSize: 14}}/>
+      <AntdButton icon={<DownloadOutlined/>} onClick={downloadAsExcel} disabled={data.length===0} size="large" style={{height: 40, fontSize: 14}} title="导出"/>
+    </div>
+  );
 
   // 获取学期信息
   const fetchSemesterInfo = async () => {
@@ -407,20 +416,29 @@ export default function ConsolePage() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider collapsible collapsed={isNarrow} onCollapse={setIsNarrow} width={isNarrow ? 60 : 200} style={{ background: '#fff' }}>
-        <Menu mode="inline" selectedKeys={[selectedKey]} onClick={handleMenuClick} items={TAB_KEYS} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/>
-        <div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div>
-        {isNarrow && (
-          <>
-            <AntdButton type="primary" shape="circle" icon={<MenuOutlined/>} size="large" className="fixed left-6 bottom-6 z-[1100] shadow-lg" onClick={()=>setDrawerOpen(true)}/>
-            <Drawer placement="left" open={drawerOpen} onClose={()=>setDrawerOpen(false)} bodyStyle={{padding:0}} width={220} className="z-[1200]">
-              <Menu mode="inline" selectedKeys={[selectedKey]} onClick={handleMenuClick} items={TAB_KEYS} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/>
-              <div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div>
-            </Drawer>
-          </>
-        )}
+      <Sider
+        collapsible
+        collapsed={isNarrow}
+        onCollapse={setIsNarrow}
+        width={isNarrow ? 60 : 200}
+        style={{ background: '#fff', display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative' }}
+        trigger={null}
+      >
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          onClick={handleMenuClick}
+          items={TAB_KEYS}
+          className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-160px)]"
+        />
+        <div
+          className="py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"
+          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+        >
+          <UserMenu />
+        </div>
       </Sider>
-      <Layout><Content className={`p-8 bg-slate-50 rounded-2xl shadow-lg min-h-[600px] my-8 mx-8 ${isNarrow ? '' : 'ml-[232px]'}`}>
+      <Layout><Content className="p-8 bg-slate-50 rounded-2xl shadow-lg min-h-[600px] my-8 mx-8">
         {selectedKey === "upload" && <UploadPanel uploading={uploading} message={message} onFileChange={handleFileChange} onClear={handleClear} historyButtons={commonHistoryButtons}/>} 
         {selectedKey === "manage" && <ManagePanel data={data} loading={loading} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onDataChange={handleDataChangeFromManagePanel} editModalOpen={editModalOpen} editRow={editRow} onEditModalClose={handleEditCancel} onEditSave={handleEditSaveSingle} form={editForm} historyButtons={commonHistoryButtons} page={page} pageSize={pageSize} setPage={setPage}/>} 
         {selectedKey === "semester" && (

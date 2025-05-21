@@ -368,7 +368,8 @@ export default function ManagePanel({
           pageSize: pageSize,
           total: data.length,
           onChange: setPage,
-          locale: { items_per_page: '条/页' }
+          locale: { items_per_page: '条/页' },
+          style: { marginRight: 24 }
         }}
         bordered
         rowClassName={(_, idx) => idx % 2 === 0 ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"}
