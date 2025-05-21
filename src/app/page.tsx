@@ -25,10 +25,47 @@ interface DataRow {
 // API基础URL，从环境变量读取，若未设置则为空字符串
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
-// 新增：判断是否登录的函数（基于auth-token cookie）
+// 新增：获取auth-token的过期时间（假设token存储在cookie，且有expires字段）
+function getAuthTokenExpire() {
+  const match = document.cookie.match(/auth-token=([^;]+);?\s*(expires=([^;]+))?/);
+  if (!match) return null;
+  // 这里假设token有效期由服务端控制，前端只做简单时间判断
+  // 实际可用localStorage/sessionStorage存储登录时间戳
+  const loginTime = localStorage.getItem('login-time');
+  return loginTime ? parseInt(loginTime, 10) : null;
+}
+
+// 修改isLoggedIn，5分钟内有效
 function isLoggedIn() {
   if (typeof window === 'undefined') return false;
-  return document.cookie.split(';').some(c => c.trim().startsWith('auth-token='));
+  const hasToken = document.cookie.split(';').some(c => c.trim().startsWith('auth-token='));
+  if (!hasToken) return false;
+  const loginTime = getAuthTokenExpire();
+  if (!loginTime) return false;
+  // 5分钟=300000毫秒
+  return Date.now() - loginTime < 300000;
+}
+
+// 登录后设置登录时间
+function setLoginTime() {
+  localStorage.setItem('login-time', Date.now().toString());
+}
+
+// 退出登录
+function logout() {
+  document.cookie = 'auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  localStorage.removeItem('login-time');
+}
+
+// 控制台跳转逻辑
+function handleConsoleClick(e: React.MouseEvent) {
+  e.preventDefault();
+  if (isLoggedIn()) {
+    window.location.href = '/console';
+  } else {
+    // 跳转到登录页，登录后回跳console
+    window.location.href = `/login?from=/console`;
+  }
 }
 
 // 新增：姓名脱敏
@@ -221,11 +258,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center py-8 px-4">
       <div className="w-full flex justify-end max-w-[96vw] md:max-w-6xl mb-2">
-        {/* {isLoggedIn() && ( */}
-          <a href="/console" className="text-blue-600 hover:underline font-medium px-3 py-2 rounded-md hover:bg-blue-100 transition-colors">
-            进入控制台
-          </a>
-        {/* )} */}
+        <a href="/console" onClick={handleConsoleClick} className="text-blue-600 hover:underline font-medium px-3 py-2 rounded-md hover:bg-blue-100 transition-colors">
+          进入控制台
+        </a>
       </div>
       <div className="text-3xl font-bold text-blue-700 mb-6 text-center">兴趣班空余时间日历</div>
       
