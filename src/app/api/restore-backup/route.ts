@@ -202,4 +202,32 @@ export async function GET(req: NextRequest) {
       processingTime: errTime
     }, { status: 500 });
   }
+}
+
+export async function PATCH(req: NextRequest) {
+  // 用于将 backup_excel_data 覆盖 excel_data，并返回覆盖后的 excel_data 内容
+  const startTime = Date.now();
+  let redis;
+  try {
+    redis = await getRedis();
+    // 读取备份数据
+    const backupData = await redis.get("backup_excel_data");
+    if (!backupData) {
+      return NextResponse.json({ message: "未找到备份数据" }, { status: 404 });
+    }
+    // 覆盖主数据表
+    await redis.set("excel_data", backupData);
+    // 读取已覆盖的主数据表内容
+    const newValue = await redis.get("excel_data");
+    let parsed;
+    try {
+      parsed = newValue ? JSON.parse(newValue) : [];
+    } catch (e) {
+      parsed = [];
+    }
+    return NextResponse.json({ message: "恢复并覆盖成功", value: parsed });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ message: "恢复并覆盖失败: " + error.message }, { status: 500 });
+  }
 } 
