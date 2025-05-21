@@ -1,4 +1,4 @@
- "use client";
+"use client";
 import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { Layout, Menu, message as antdMessage, Modal, Form, Input, Switch, Select, Button as AntdButton } from "antd";
@@ -49,6 +49,13 @@ interface DataRow {
   periods: number[]; weekType: boolean | null; timeBlocks: string[];
 }
 
+const TAB_KEYS = [
+  { key: "home", label: "首页" },
+  { key: "upload", label: "数据上传" },
+  { key: "manage", label: "数据管理" },
+  { key: "semester", label: "学期设置" }
+];
+
 export default function ConsolePage() {
   const [selectedKey, setSelectedKey] = useState("upload");
   const [uploading, setUploading] = useState(false);
@@ -67,6 +74,10 @@ export default function ConsolePage() {
   const [editForm] = Form.useForm();
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [semesterInfo, setSemesterInfo] = useState<any>(null);
+  const [semesterLoading, setSemesterLoading] = useState(false);
+  const [semesterForm] = Form.useForm();
+  const [holidays, setHolidays] = useState<{ name: string, start: string, end: string }[]>([]);
 
   useEffect(() => {
     const handleResize = () => setIsNarrow(window.innerWidth < 768);
@@ -338,16 +349,104 @@ export default function ConsolePage() {
   };
 
   const handleDataChangeFromManagePanel = (newDataFP: DataRow[]) => { setData(newDataFP); addHistory(newDataFP); antdMessage.success("数据已从备份恢复!"); };
-  const menuItems = [ { key: "upload", label: "数据上传" }, { key: "manage", label: "数据管理" }];
   const commonHistoryButtons = (<div className="flex items-center space-x-2"><div className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs flex items-center"><span className="hidden sm:inline">历史:</span>{historyIndex+1}/{history.length>0?history.length:1}</div><AntdButton type="default" icon={<UndoOutlined/>} onClick={handleUndo} disabled={historyIndex<=0} size="small"/><AntdButton type="default" icon={<RedoOutlined/>} onClick={handleRedo} disabled={historyIndex>=history.length-1} size="small"/><AntdButton icon={<DownloadOutlined/>} onClick={downloadAsExcel} disabled={data.length===0} size="small" title="导出"/></div>);
+
+  // 获取学期信息
+  const fetchSemesterInfo = async () => {
+    setSemesterLoading(true);
+    try {
+      const res = await fetch("/api/semester", { method: "GET" });
+      const result = await res.json();
+      if (result.value) {
+        setSemesterInfo(result.value);
+        semesterForm.setFieldsValue(result.value);
+        setHolidays(result.value.holidays || []);
+      }
+    } catch (e) {
+      antdMessage.error("获取学期信息失败");
+    } finally {
+      setSemesterLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (selectedKey === "semester") fetchSemesterInfo();
+  }, [selectedKey]);
+
+  // 保存学期信息
+  const handleSemesterSave = async () => {
+    try {
+      const values = await semesterForm.validateFields();
+      const body = { ...values, holidays };
+      const res = await fetch("/api/semester", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const result = await res.json();
+      if (res.ok) {
+        antdMessage.success("保存成功");
+        setSemesterInfo(body);
+      } else {
+        antdMessage.error(result.message || "保存失败");
+      }
+    } catch (e) {
+      antdMessage.error("请检查表单内容");
+    }
+  };
+  // 节假日操作
+  const handleAddHoliday = () => setHolidays([...holidays, { name: "", start: "", end: "" }]);
+  const handleHolidayChange = (idx: number, field: string, value: string) => {
+    const newHolidays = holidays.map((h, i) => i === idx ? { ...h, [field]: value } : h);
+    setHolidays(newHolidays);
+  };
+  const handleDeleteHoliday = (idx: number) => setHolidays(holidays.filter((_, i) => i !== idx));
+
+  const handleMenuClick = (e: any) => {
+    if (e.key === "home") {
+      window.location.href = "/";
+    } else {
+      setSelectedKey(e.key as string);
+    }
+  };
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      {!isNarrow && (<Sider width={200} className="fixed left-0 top-0 h-screen flex flex-col bg-white shadow-lg overflow-y-auto"><div className="text-2xl font-bold text-center py-6 text-blue-700 select-none">控制台</div><Menu mode="inline" selectedKeys={[selectedKey]} onClick={e=>setSelectedKey(e.key as string)} items={menuItems} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/><div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div></Sider>)}
-      {isNarrow && (<><AntdButton type="primary" shape="circle" icon={<MenuOutlined/>} size="large" className="fixed left-6 bottom-6 z-[1100] shadow-lg" onClick={()=>setDrawerOpen(true)}/><Drawer placement="left" open={drawerOpen} onClose={()=>setDrawerOpen(false)} bodyStyle={{padding:0}} width={220} className="z-[1200]"><div className="text-2xl font-bold text-center py-6 text-blue-700 select-none">控制台</div><Menu mode="inline" selectedKeys={[selectedKey]} onClick={e=>{setSelectedKey(e.key as string);setDrawerOpen(false);}} items={menuItems} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/><div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div></Drawer></>)}
+      <Sider collapsible collapsed={isNarrow} onCollapse={setIsNarrow} width={isNarrow ? 60 : 200} style={{ background: '#fff' }}>
+        <Menu mode="inline" selectedKeys={[selectedKey]} onClick={handleMenuClick} items={TAB_KEYS} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/>
+        <div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div>
+        {isNarrow && (
+          <>
+            <AntdButton type="primary" shape="circle" icon={<MenuOutlined/>} size="large" className="fixed left-6 bottom-6 z-[1100] shadow-lg" onClick={()=>setDrawerOpen(true)}/>
+            <Drawer placement="left" open={drawerOpen} onClose={()=>setDrawerOpen(false)} bodyStyle={{padding:0}} width={220} className="z-[1200]">
+              <Menu mode="inline" selectedKeys={[selectedKey]} onClick={handleMenuClick} items={TAB_KEYS} className="flex-1 border-r-0 text-base overflow-y-auto h-[calc(100vh-170px)]"/>
+              <div className="mt-auto py-4 px-4 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.05)]"><UserMenu/></div>
+            </Drawer>
+          </>
+        )}
+      </Sider>
       <Layout><Content className={`p-8 bg-slate-50 rounded-2xl shadow-lg min-h-[600px] my-8 mx-8 ${isNarrow ? '' : 'ml-[232px]'}`}>
-        {isNarrow ? (<>{selectedKey==="upload"&&<UploadPanel {...{uploading,message,onFileChange:handleFileChange,onClear:handleClear,historyButtons:commonHistoryButtons}}/>}{selectedKey==="manage"&&<ManagePanel {...{data,loading,onAdd:handleAdd,onEdit:handleEdit,onDelete:handleDelete,onDataChange:handleDataChangeFromManagePanel,editModalOpen,editRow,onEditModalClose:handleEditCancel,onEditSave:handleEditSaveSingle,form:editForm,historyButtons:commonHistoryButtons,page,pageSize,setPage}}/>}</>)
-        : (<div className="bg-white rounded-2xl shadow-xl p-8 min-h-[500px]">{selectedKey==="upload"&&<UploadPanel {...{uploading,message,onFileChange:handleFileChange,onClear:handleClear,historyButtons:commonHistoryButtons}}/>}{selectedKey==="manage"&&<ManagePanel {...{data,loading,onAdd:handleAdd,onEdit:handleEdit,onDelete:handleDelete,onDataChange:handleDataChangeFromManagePanel,editModalOpen,editRow,onEditModalClose:handleEditCancel,onEditSave:handleEditSaveSingle,form:editForm,historyButtons:commonHistoryButtons,page,pageSize,setPage}}/>}</div>)}
+        {selectedKey === "upload" && <UploadPanel uploading={uploading} message={message} onFileChange={handleFileChange} onClear={handleClear} historyButtons={commonHistoryButtons}/>} 
+        {selectedKey === "manage" && <ManagePanel data={data} loading={loading} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onDataChange={handleDataChangeFromManagePanel} editModalOpen={editModalOpen} editRow={editRow} onEditModalClose={handleEditCancel} onEditSave={handleEditSaveSingle} form={editForm} historyButtons={commonHistoryButtons} page={page} pageSize={pageSize} setPage={setPage}/>} 
+        {selectedKey === "semester" && (
+          <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-8">
+            <div className="text-2xl font-bold mb-4 text-blue-700">学期设置</div>
+            <Form form={semesterForm} layout="vertical" initialValues={semesterInfo || {}}>
+              <Form.Item name="year" label="学年" rules={[{ required: true, message: '请输入学年' }]}><Input placeholder="如 2024" /></Form.Item>
+              <Form.Item name="semester" label="学期" rules={[{ required: true, message: '请输入学期' }]}><Select placeholder="请选择"><Select.Option value="春季">春季</Select.Option><Select.Option value="秋季">秋季</Select.Option></Select></Form.Item>
+              <Form.Item name="firstMonday" label="第一周周一日期" rules={[{ required: true, message: '请选择日期' }]}><Input type="date" /></Form.Item>
+              <div className="mt-6 mb-2 font-semibold text-blue-600">法定节假日</div>
+              {holidays.map((h, idx) => (
+                <div key={idx} className="flex gap-2 mb-2 items-center">
+                  <Input style={{ width: 120 }} placeholder="节假日名称" value={h.name} onChange={e => handleHolidayChange(idx, 'name', e.target.value)} />
+                  <Input type="date" style={{ width: 140 }} value={h.start} onChange={e => handleHolidayChange(idx, 'start', e.target.value)} />
+                  <span>至</span>
+                  <Input type="date" style={{ width: 140 }} value={h.end} onChange={e => handleHolidayChange(idx, 'end', e.target.value)} />
+                  <AntdButton danger type="text" onClick={() => handleDeleteHoliday(idx)}>删除</AntdButton>
+                </div>
+              ))}
+              <AntdButton type="dashed" onClick={handleAddHoliday} className="mb-4">添加节假日</AntdButton>
+              <div className="mt-6">
+                <AntdButton type="primary" onClick={handleSemesterSave} loading={semesterLoading}>保存设置</AntdButton>
+              </div>
+            </Form>
+          </div>
+        )}
       </Content></Layout>
       <Modal open={addModalOpen} onCancel={handleAddCancel} onOk={handleAddSave} title="批量新增" width={600} destroyOnClose><Form form={form} layout="vertical" initialValues={{isTheory:false}}><Form.Item name="name" label="姓名" rules={[{required:true}]}><Input placeholder="教师姓名"/></Form.Item><Form.Item name="class" label="班级" rules={[{required:true}]}><Input placeholder="班级名称"/></Form.Item><Form.Item name="isTheory" label="课程类型" valuePropName="checked"><Switch checkedChildren="理论" unCheckedChildren="实训" onChange={handleTheorySwitch}/></Form.Item>{form.getFieldValue('isTheory')?(<div className="bg-blue-50 p-4 rounded mb-4"><div className="text-blue-700 font-semibold mb-2">理论课</div><p className="text-sm mb-2">按星期分组创建记录</p><Form.Item label="星期+节次" name="weekPeriod" rules={[{validator:async()=>(weekPeriod.length>0?Promise.resolve():Promise.reject('选星期+节次'))}]}><WeekPeriodTable value={weekPeriod} onChange={setWeekPeriod}/></Form.Item></div>):(<div className="bg-green-50 p-4 rounded mb-4"><div className="text-green-700 font-semibold mb-2">实训课</div><p className="text-sm mb-2">按单双周分组创建记录</p><Form.Item label="单双周+时段" name="weekTypeTimeBlock" rules={[{validator:async()=>(weekTypeTimeBlock.length>0?Promise.resolve():Promise.reject('选单双周+时段'))}]}><WeekTypeTimeBlockTable value={weekTypeTimeBlock} onChange={setWeekTypeTimeBlock}/></Form.Item></div>)}<div className="mt-4 pt-4 border-t"><div className="text-gray-500 text-sm">注: 新数据添加在列表顶部</div></div></Form></Modal>
       <Modal open={editModalOpen} onCancel={handleEditCancel} onOk={handleEditSaveSingle} title="编辑" width={450} destroyOnClose><Form form={editForm} layout="vertical"><Form.Item name="name" label="姓名"><Input disabled/></Form.Item><Form.Item name="class" label="班级"><Input disabled/></Form.Item><Form.Item label="类型"><Input value={editRow?.isTheory?'理论':'实训'} disabled/></Form.Item>{editRow?.isTheory?(<><Form.Item label="星期"><Input value={editRow?`周${['一','二','三','四','五'][editRow.weekday-1]}`:''} disabled/></Form.Item><Form.Item name="periods" label="节次" rules={[{required:true}]}><Select mode="multiple" placeholder="选节次" allowClear className="w-full">{PERIODS.map(p=><Select.Option key={p} value={p}>{p}节</Select.Option>)}</Select></Form.Item></>):(<><Form.Item label="周类型"><Input value={editRow?.weekType===true?'单周':(editRow?.weekType===false?'双周':'未定')} disabled/></Form.Item><Form.Item name="timeBlocks" label="时间段" rules={[{required:true}]}><Select mode="multiple" placeholder="选时间段" allowClear className="w-full">{TIME_BLOCKS.map(tb=><Select.Option key={tb} value={tb}>{tb}</Select.Option>)}</Select></Form.Item></>)}<div className="mt-4 pt-4 border-t"><div className="text-gray-500 text-sm">注:仅修改节次/时段</div></div></Form></Modal>
