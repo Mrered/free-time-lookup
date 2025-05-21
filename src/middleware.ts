@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
   }
   
   // 只允许根路径公开
-  if (pathname === '/' || pathname === '/login' || pathname === '/api/auth/login' || pathname === '/api/public-today') {
+  if (pathname === '/' || pathname === '/login' || pathname === '/api/auth/login' || pathname === '/api/public-today' || pathname === '@/utils/redis.ts') {
     logInfo("访问公开路径，跳过验证", { pathname });
     return NextResponse.next();
   }

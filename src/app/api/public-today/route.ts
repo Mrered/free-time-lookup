@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     // 只保留当天的数据，并脱敏姓名
     const filtered = allData
-      .filter((item: any) => item.date === todayStr)
+      // .filter((item: any) => item.date === todayStr)
       .map((item: any) => ({ ...item, name: maskName(item.name) }));
 
     return NextResponse.json({ success: true, data: filtered });
