@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRedis } from "@/utils/redis";
+import { v4 as uuidv4 } from "uuid";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +12,16 @@ export async function POST(req: NextRequest) {
       console.log("[POST] 缺少 key 或 value", { key, value });
       return NextResponse.json({ message: "缺少 key 或 value" }, { status: 400 });
     }
-    await redis.set(key, JSON.stringify(value));
+    let newValue = value;
+    if (Array.isArray(value)) {
+      newValue = value.map((item) => {
+        if (!item.uuid) {
+          return { ...item, uuid: uuidv4() };
+        }
+        return item;
+      });
+    }
+    await redis.set(key, JSON.stringify(newValue));
     console.log("[POST] 数据写入成功", { key, value });
     return NextResponse.json({ message: "写入成功" });
   } catch (err) {
@@ -28,7 +38,16 @@ export async function GET() {
     console.log("[GET] Redis 连接成功");
     const value = await redis.get("excel_data");
     console.log("[GET] 读取到的原始数据:", value);
-    return NextResponse.json({ value: value ? JSON.parse(value) : [] });
+    let arr = value ? JSON.parse(value) : [];
+    if (Array.isArray(arr)) {
+      arr = arr.map((item) => {
+        if (!item.uuid) {
+          return { ...item, uuid: uuidv4() };
+        }
+        return item;
+      });
+    }
+    return NextResponse.json({ value: arr });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     console.error("[GET] 读取失败", error);

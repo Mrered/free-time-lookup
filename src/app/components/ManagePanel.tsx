@@ -5,6 +5,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, DownloadOut
 import { useEffect, useState, ReactNode } from "react";
 
 interface DataRow {
+  uuid: string;
   name: string;
   class: string;
   weekday: number;
@@ -18,8 +19,8 @@ interface ManagePanelProps {
   data: DataRow[];
   loading: boolean;
   onAdd: () => void;
-  onEdit: (idx: number) => void;
-  onDelete: (idx: number) => Promise<void>;
+  onEdit: (uuid: string) => void;
+  onDelete: (uuid: string) => Promise<void>;
   onDataChange: (newData: DataRow[]) => void;
   editModalOpen: boolean;
   editRow: DataRow | null;
@@ -61,8 +62,8 @@ export default function ManagePanel({
   isDownloadDisabled
 }: ManagePanelProps) {
   const [isNarrow, setIsNarrow] = useState(false);
-  const [activeIdx, setActiveIdx] = useState<number | null>(null);
-  const [actionIdx, setActionIdx] = useState<number | null>(null);
+  const [activeIdx, setActiveIdx] = useState<string | null>(null);
+  const [actionIdx, setActionIdx] = useState<string | null>(null);
   const [backupInfo, setBackupInfo] = useState<{hasBackup: boolean, formattedTime: string | null}>({
     hasBackup: false,
     formattedTime: null
@@ -170,8 +171,7 @@ export default function ManagePanel({
       title: "操作",
       key: "action",
       align: "center",
-      render: (_, record, idx) => {
-        const globalIdx = data.findIndex(item => item === record);
+      render: (_, record) => {
         return (
           <span>
             <Button
@@ -179,13 +179,13 @@ export default function ManagePanel({
               size="small"
               style={{ marginRight: 8 }}
               onClick={() => {
-                onEdit(globalIdx);
+                onEdit(record.uuid);
               }}
             >编辑</Button>
             <Popconfirm
               title="确定要删除这条数据吗？"
               onConfirm={() => {
-                onDelete(globalIdx);
+                onDelete(record.uuid);
               }}
               okText="确定"
               cancelText="取消"
@@ -259,17 +259,14 @@ export default function ManagePanel({
         {loading ? <div className="text-center text-gray-400 py-8">加载中...</div> : null}
         {isRestoringBackup && !loading && <div className="text-center text-blue-500 py-2">正在恢复备份...</div>}
 
-        {pagedData.map((row, localIdx) => {
-          const globalIdxInData = data.indexOf(row);
-          const cardKey = `${row.name}-${row.class}-${row.weekday}-${String(row.weekType)}-${row.periods.join('_')}-${row.timeBlocks.join('_')}-${localIdx}`;
-
+        {pagedData.map((row) => {
           return (
             <div
-              key={cardKey}
+              key={row.uuid}
               className="relative bg-gradient-to-br from-blue-50 to-white rounded-2xl shadow-lg p-4 flex flex-col gap-2 border border-blue-100 hover:shadow-2xl transition-shadow duration-200 items-stretch"
               style={{ minWidth: 0 }}
-              onDoubleClick={() => setActionIdx(globalIdxInData)}
-              onMouseEnter={() => setActiveIdx(globalIdxInData)}
+              onDoubleClick={() => setActionIdx(row.uuid)}
+              onMouseEnter={() => setActiveIdx(row.uuid)}
               onMouseLeave={() => setActiveIdx(null)}
             >
               <div className="flex-1 flex flex-col gap-2 justify-between">
@@ -311,24 +308,24 @@ export default function ManagePanel({
                   </div>
                 </div>
               </div>
-              {actionIdx === globalIdxInData && (
+              {actionIdx === row.uuid && (
                 <div
                   className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl backdrop-blur-md bg-white/60"
                   onClick={() => setActionIdx(null)}
                   style={{ transition: 'backdrop-filter 0.2s' }}
                 >
                   <div className="flex flex-row gap-4">
-                    <Button icon={<EditOutlined />} size="large" type="primary" onClick={e => { e.stopPropagation(); setActionIdx(null); onEdit(globalIdxInData); }}>编辑</Button>
-                    <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => { setActionIdx(null); onDelete(globalIdxInData); }} okText="确定" cancelText="取消">
+                    <Button icon={<EditOutlined />} size="large" type="primary" onClick={e => { e.stopPropagation(); setActionIdx(null); onEdit(row.uuid); }}>编辑</Button>
+                    <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => { setActionIdx(null); onDelete(row.uuid); }} okText="确定" cancelText="取消">
                       <Button icon={<DeleteOutlined />} size="large" danger onClick={e => e.stopPropagation()}>删除</Button>
                     </Popconfirm>
                   </div>
                 </div>
               )}
-              {!isNarrow && activeIdx === globalIdxInData && (
+              {!isNarrow && activeIdx === row.uuid && (
                  <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/95 rounded-xl shadow-lg px-3 py-2 flex flex-col gap-2 border border-blue-100 animate-fade-in">
-                    <Button icon={<EditOutlined />} size="small" onClick={e => { e.stopPropagation(); onEdit(globalIdxInData); }} style={{width:64}}>编辑</Button>
-                    <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => onDelete(globalIdxInData)} okText="确定" cancelText="取消">
+                    <Button icon={<EditOutlined />} size="small" onClick={e => { e.stopPropagation(); onEdit(row.uuid); }} style={{width:64}}>编辑</Button>
+                    <Popconfirm title="确定要删除这条数据吗？" onConfirm={() => onDelete(row.uuid)} okText="确定" cancelText="取消">
                         <Button icon={<DeleteOutlined />} size="small" danger style={{width:64}} onClick={e => e.stopPropagation()}>删除</Button>
                     </Popconfirm>
                  </div>
@@ -356,7 +353,7 @@ export default function ManagePanel({
       <Table
         columns={columns}
         dataSource={data}
-        rowKey={record => `${record.name}-${record.class}-${record.weekday}-${String(record.weekType)}-${record.periods.join('_')}-${record.timeBlocks.join('_')}`}
+        rowKey={record => record.uuid}
         loading={loading || (isRestoringBackup)}
         pagination={{
           current: page,

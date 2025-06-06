@@ -6,6 +6,7 @@ import UploadPanel from "../components/UploadPanel"; // 调整路径
 import ManagePanel from "../components/ManagePanel"; // 调整路径
 import UserMenu from "../components/UserMenu";     // 调整路径
 import { UndoOutlined, RedoOutlined, DownloadOutlined, HomeOutlined, CloudUploadOutlined, DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
+import { v4 as uuidv4 } from "uuid";
 // PlusOutlined is now primarily used within ManagePanel, can be removed if not used elsewhere in ConsolePage
 
 const { Sider, Content } = Layout;
@@ -45,8 +46,14 @@ const WEEKDAYS = [1, 2, 3, 4, 5];
 const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 interface DataRow {
-  name: string; class: string; weekday: number; isTheory: boolean;
-  periods: number[]; weekType: boolean | null; timeBlocks: string[];
+  uuid: string;
+  name: string;
+  class: string;
+  weekday: number;
+  isTheory: boolean;
+  periods: number[];
+  weekType: boolean | null;
+  timeBlocks: string[];
 }
 
 const TAB_KEYS = [
@@ -222,7 +229,7 @@ export default function ConsolePage() {
           else if (weekTypeValue === 0 || weekTypeValue === "0" || String(weekTypeValue).toLowerCase() === 'false') weekType = false;
         }
         const timeBlocks = timeBlockIdxs.map((excelColIdx, internalTimeBlockIdx) => row[excelColIdx] ? TIME_BLOCKS[internalTimeBlockIdx] : null).filter(Boolean) as string[];
-        return { name: String(row[idxName]), class: String(row[idxClass]), weekday: Number(row[idxWeekday]), isTheory, periods, weekType, timeBlocks };
+        return { uuid: uuidv4(), name: String(row[idxName]), class: String(row[idxClass]), weekday: Number(row[idxWeekday]), isTheory, periods, weekType, timeBlocks };
       });
       antdMessage.success("文件解析成功，数据已更新并在关闭浏览器时自动保存");
       setData(json); addHistory(json);
@@ -266,15 +273,17 @@ export default function ConsolePage() {
     });
   };
 
-  const handleDelete = async (idx: number) => {
-    const newData = data.filter((_, i) => i !== idx); setData(newData); addHistory(newData);
+  const handleDelete = async (uuid: string) => {
+    const newData = data.filter((item) => item.uuid !== uuid); setData(newData); addHistory(newData);
     antdMessage.success("删除成功 (将在关闭浏览器时保存)");
   };
 
   const handleAdd = () => { setAddModalOpen(true); form.resetFields(); setWeekPeriod([]); setWeekTypeTimeBlock([]); };
   const handleAddCancel = () => setAddModalOpen(false);
 
-  const handleEdit = (idx: number) => {
+  const handleEdit = (uuid: string) => {
+    const idx = data.findIndex(item => item.uuid === uuid);
+    if (idx === -1) return;
     setEditIdx(idx); const rowToEdit = data[idx]; setEditRow(JSON.parse(JSON.stringify(rowToEdit)));
     const formValues = { name: rowToEdit.name, class: rowToEdit.class, isTheory: rowToEdit.isTheory,
         weekday: rowToEdit.isTheory ? rowToEdit.weekday : undefined, periods: rowToEdit.isTheory ? rowToEdit.periods : [],
@@ -330,7 +339,8 @@ export default function ConsolePage() {
 
   const handleEditSaveSingle = async () => {
     try { const values = await editForm.validateFields(); if (editIdx === null || !editRow) return;
-      const base = { name: editRow.name, class: editRow.class, isTheory: editRow.isTheory }; let newR: DataRow;
+      const base = { uuid: editRow.uuid, name: editRow.name, class: editRow.class, isTheory: editRow.isTheory };
+      let newR: DataRow;
       if (base.isTheory) { if (!values.periods?.length) { antdMessage.error("理论课请选节次"); return; } newR = { ...base, weekday: editRow.weekday, periods: values.periods.map(Number).sort((a:number,b:number)=>a-b), weekType: null, timeBlocks: [] };
       } else { if (!values.timeBlocks?.length) { antdMessage.error("实训课请选时间段"); return; } const vTBs:string[]=[]; for(const tb of values.timeBlocks){if(TIME_BLOCKS.includes(tb))vTBs.push(tb);else{const mtb=TIME_BLOCKS.find(t=>t.startsWith(tb)); if(mtb)vTBs.push(mtb);else{antdMessage.error(`无效时段: ${tb}`);return;}}} newR = { ...base, weekday:0, periods:[], weekType: editRow.weekType, timeBlocks:vTBs }; }
       const newData = [...data]; newData[editIdx] = newR; setData(newData); addHistory(newData);
@@ -339,9 +349,10 @@ export default function ConsolePage() {
   };
 
   const handleAddSave = async () => {
-    try { const values = await form.validateFields(); const formD = { name: values.name, class: values.class }; let newRs: DataRow[] = [];
-      if (values.isTheory) { if (!weekPeriod.length) { antdMessage.error("理论课选星期+节次"); return; } const wdP:Record<number,number[]>={}; for(const [wd,p] of weekPeriod){if(!wdP[wd])wdP[wd]=[];wdP[wd].push(p);} for(const [wd,ps] of Object.entries(wdP))newRs.push({...formD,weekday:Number(wd),isTheory:true,periods:ps.sort((a,b)=>a-b),weekType:null,timeBlocks:[]});
-      } else { if (!weekTypeTimeBlock.length) { antdMessage.error("实训课选单双周+时段"); return; } const grp:Record<string,string[]>={'true':[],'false':[]}; for(const [wtB,tb]of weekTypeTimeBlock){const wtS=String(wtB);if(!TIME_BLOCKS.includes(tb)){const mtb=TIME_BLOCKS.find(t=>t.startsWith(tb));if(mtb)grp[wtS].push(mtb);else{antdMessage.error(`无效时段:${tb}`);return;}}else grp[wtS].push(tb);} if(grp['true'].length>0)newRs.push({...formD,weekday:0,isTheory:false,periods:[],weekType:true,timeBlocks:grp['true']}); if(grp['false'].length>0)newRs.push({...formD,weekday:0,isTheory:false,periods:[],weekType:false,timeBlocks:grp['false']});}
+    try { const values = await form.validateFields(); const formD = { name: values.name, class: values.class };
+      let newRs: DataRow[] = [];
+      if (values.isTheory) { if (!weekPeriod.length) { antdMessage.error("理论课选星期+节次"); return; } const wdP:Record<number,number[]>={}; for(const [wd,p] of weekPeriod){if(!wdP[wd])wdP[wd]=[];wdP[wd].push(p);} for(const [wd,ps] of Object.entries(wdP))newRs.push({uuid: uuidv4(), ...formD,weekday:Number(wd),isTheory:true,periods:ps.sort((a,b)=>a-b),weekType:null,timeBlocks:[]});
+      } else { if (!weekTypeTimeBlock.length) { antdMessage.error("实训课选单双周+时段"); return; } const grp:Record<string,string[]>={'true':[],'false':[]}; for(const [wtB,tb]of weekTypeTimeBlock){const wtS=String(wtB);if(!TIME_BLOCKS.includes(tb)){const mtb=TIME_BLOCKS.find(t=>t.startsWith(tb));if(mtb)grp[wtS].push(mtb);else{antdMessage.error(`无效时段:${tb}`);return;}}else grp[wtS].push(tb);} if(grp['true'].length>0)newRs.push({uuid: uuidv4(),...formD,weekday:0,isTheory:false,periods:[],weekType:true,timeBlocks:grp['true']}); if(grp['false'].length>0)newRs.push({uuid: uuidv4(),...formD,weekday:0,isTheory:false,periods:[],weekType:false,timeBlocks:grp['false']});}
       setData([...newRs, ...data]); addHistory([...newRs, ...data]); setAddModalOpen(false); antdMessage.success("新增成功 (将自动保存)");
     } catch (e) { console.error("保存失败:", e); antdMessage.error("保存失败"); }
   };
