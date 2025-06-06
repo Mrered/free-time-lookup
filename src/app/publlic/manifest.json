@@ -1,0 +1,25 @@
+{
+    "name": "兴趣班空余时间日历", 
+    "short_name": "空余时间", 
+    "description": "查看兴趣班学生的空余时间安排日历", 
+    "icons": [
+        {
+            "src": "/icons/icon-192x192.png", 
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable" 
+        },
+        {
+            "src": "/icons/icon-512x512.png", 
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "start_url": "/", 
+    "display": "standalone", 
+    "background_color": "#ffffff", 
+    "theme_color": "#007bff", 
+    "scope": "/", 
+    "orientation": "portrait" 
+}

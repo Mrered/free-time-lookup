@@ -10,6 +10,7 @@ import { getTheoryFreeTime } from "@/utils/theoryFreeTime";
 import { getTrainingFreeTime } from "@/utils/trainingFreeTime";
 import { getDefaultSpringFirstMonday } from "@/utils/weekUtils";
 import { fetchYearHolidays } from "@/utils/holidayApi";
+import { MenuOutlined } from "@ant-design/icons";
 
 // 定义数据行结构
 interface DataRow {
@@ -62,6 +63,15 @@ export default function HomePage() {
   const [firstMonday, setFirstMonday] = useState<Date | null>(null); // 本学期第一教学周的周一日期
   const [loading, setLoading] = useState(true); // 主数据加载状态
   const [modalInfo, setModalInfo] = useState<any>(null); // 日历事件点击后弹窗显示的信息
+  const [showMenu, setShowMenu] = useState(false); // 控制弹出菜单
+  const [isNarrow, setIsNarrow] = useState(false); // 响应式
+
+  useEffect(() => {
+    const handleResize = () => setIsNarrow(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Effect Hook: 组件挂载后获取所有学生数据
   useEffect(() => {
@@ -249,14 +259,15 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center py-8 px-4">
-      <div className="w-full flex justify-end max-w-[96vw] md:max-w-6xl mb-2">
+      {/* 顶部导航栏，仅宽屏显示 */}
+      <div className={`w-full flex justify-end max-w-[96vw] md:max-w-6xl mb-2`}>
         <a href="/console" onClick={handleConsoleClick} className="text-blue-600 hover:underline font-medium px-3 py-2 rounded-md hover:bg-blue-100 transition-colors">
           进入控制台
         </a>
       </div>
       <div className="text-3xl font-bold text-blue-700 mb-6 text-center">兴趣班空余时间日历</div>
-      
-      <div className="flex flex-wrap gap-x-6 gap-y-4 mb-6 items-center justify-center bg-white rounded-lg shadow p-4 md:p-6 w-full max-w-[96vw] md:max-w-6xl">
+      {/* 筛选区：宽屏显示，窄屏隐藏 */}
+      <div className={`flex flex-wrap gap-x-6 gap-y-4 mb-6 items-center justify-center bg-white rounded-lg shadow p-4 md:p-6 w-full max-w-[96vw] md:max-w-6xl ${isNarrow ? 'hidden' : ''}`}>
         <div>
           <span className="mr-2 font-medium text-gray-700">周类型:</span>
           <Switch checkedChildren="单周" unCheckedChildren="双周" checked={weekType} onChange={setWeekType} />
@@ -283,6 +294,56 @@ export default function HomePage() {
           />
         </div>
       </div>
+      {/* 悬浮菜单按钮，仅窄屏显示 */}
+      {isNarrow && (
+        <>
+          <button
+            className="fixed z-50 bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors"
+            style={{ boxShadow: '0 4px 24px #1677ff44' }}
+            onClick={() => setShowMenu(true)}
+            aria-label="菜单"
+          >
+            <MenuOutlined style={{ fontSize: 28 }} />
+          </button>
+          <Modal
+            open={showMenu}
+            onCancel={() => setShowMenu(false)}
+            footer={null}
+            closable={true}
+            centered
+            bodyStyle={{ borderRadius: 18, padding: 24 }}
+            title={<span className="font-semibold text-lg text-blue-700 flex items-center gap-2"><MenuOutlined /> 筛选与设置</span>}
+          >
+            <div className="flex flex-col gap-4">
+              <div>
+                <span className="mr-2 font-medium text-gray-700">周类型:</span>
+                <Switch checkedChildren="单周" unCheckedChildren="双周" checked={weekType} onChange={setWeekType} />
+              </div>
+              <div>
+                <span className="mr-2 font-medium text-gray-700">理论课:</span>
+                <Switch checked={showTheory} onChange={setShowTheory} />
+              </div>
+              <div>
+                <span className="mr-2 font-medium text-gray-700">实训课:</span>
+                <Switch checked={showTraining} onChange={setShowTraining} />
+              </div>
+              <div>
+                <span className="mr-2 font-medium text-gray-700">班级:</span>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  style={{ minWidth: 150, maxWidth: 300, width: '100%' }}
+                  placeholder="全部班级"
+                  value={classFilter}
+                  onChange={setClassFilter}
+                  options={allClasses.map(c => ({ value: c, label: c }))}
+                  maxTagCount="responsive"
+                />
+              </div>
+            </div>
+          </Modal>
+        </>
+      )}
 
       <div className="w-full max-w-[96vw] md:max-w-6xl bg-white rounded-xl shadow-xl p-2 sm:p-4">
         {loading ? (
